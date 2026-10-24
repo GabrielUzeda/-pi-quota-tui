@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """Pet virtual ANSI: geometria e bitmaps próprios, sem imagens ou dependências."""
 
-import argparse
 import math
-import os
-import shutil
-import sys
-import time
 
 Color = tuple[int, int, int]
 Canvas = list[list[Color | None]]
@@ -697,186 +692,17 @@ def frames_para(rows: int, expr_idx: int = 0, pet_name: str = "antigravity") -> 
     return _CACHE[rows, expr_idx, pet_name]
 
 
-def celula_ansi(
-    top: tuple[int, int, int] | None, bot: tuple[int, int, int] | None
-) -> str:
-    """Converte 2 pixels verticais em meio-bloco ANSI."""
-    if top is None and bot is None:
-        return "\x1b[0m "
-    if bot is None and top is not None:
-        r, g, b = top
-        return f"\x1b[38;2;{r};{g};{b}m\x1b[49m▀\x1b[0m"
-    if top is None and bot is not None:
-        r, g, b = bot
-        return f"\x1b[38;2;{r};{g};{b}m\x1b[49m▄\x1b[0m"
-    r1, g1, b1 = top if top is not None else (0, 0, 0)
-    r2, g2, b2 = bot if bot is not None else (0, 0, 0)
-    return f"\x1b[38;2;{r1};{g1};{b1}m\x1b[48;2;{r2};{g2};{b2}m▀\x1b[0m"
 
 
-def matrix_to_ansi(
-    canvas: list[list[tuple[int, int, int] | None]]
-) -> tuple[str, int]:
-    linhas = []
-    for y in range(0, len(canvas), 2):
-        topo = canvas[y]
-        base = canvas[y + 1] if y + 1 < len(canvas) else [None] * len(topo)
-        linhas.append("".join(celula_ansi(t, b) for t, b in zip(topo, base, strict=True)))
-    return "\n".join(linhas) + "\n", len(linhas)
 
 
-def escrever(path: str, texto: str) -> None:
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(texto)
-    except OSError as e:
-        raise SystemExit(f"Erro ao escrever {path}: {e}") from None
 
 
-def exportar(export_dir: str, rows: int, expr_idx: int = 0, pet_name: str = "antigravity") -> None:
-    try:
-        os.makedirs(export_dir, exist_ok=True)
-    except OSError as e:
-        raise SystemExit(f"Erro ao criar {export_dir}: {e}") from None
-    dados = frames_para(rows, expr_idx, pet_name)
-    for st in STATES:
-        for i, matriz in enumerate(dados[st]):
-            ansi, _ = matrix_to_ansi(matriz)
-            escrever(os.path.join(export_dir, f"{st}_f{i + 1}.ansi"), ansi)
-    print(f"✔ 24 frames exportados com sucesso em: {export_dir}/")
 
 
-def run_pet(
-    initial_state: str,
-    demo: bool,
-    export_dir: str | None,
-    state_file: str,
-    fps: float,
-    rows: int | None,
-    expr_idx: int = 0,
-    pet_name: str = "antigravity",
-) -> None:
-    if rows is None:  # cabecalho + folga = 3 linhas
-        cols, lines = shutil.get_terminal_size((100, 45))
-        rows = max(1, min(42, lines - 3, (cols - 1) // 2))
-
-    if export_dir:
-        exportar(export_dir, rows, expr_idx, pet_name)
-        return
-
-    dados = frames_para(rows, expr_idx, pet_name)
-    cache = {
-        (st, i): matrix_to_ansi(matriz)
-        for st in STATES
-        for i, matriz in enumerate(dados[st])
-    }
-
-    sys.stdout.write("\x1b[?1049h\x1b[?25l")
-    sys.stdout.flush()
-
-    estado = initial_state
-    delay = 1.0 / fps
-    ciclo = 0
-    try:
-        while True:
-            if not demo and os.path.exists(state_file):
-                try:
-                    with open(state_file, encoding="utf-8") as sf:
-                        lido = sf.read().strip().lower()
-                    if lido in STATES:
-                        estado = lido
-                except OSError:
-                    pass
-            if demo and ciclo > 0 and ciclo % 3 == 0:
-                estado = STATES[(STATES.index(estado) + 1) % len(STATES)]
-
-            for i in range(len(dados[estado])):
-                ansi, _ = cache[(estado, i)]
-                header = (
-                    f" \x1b[1;36m● {estado.upper():<12}\x1b[0m "
-                    f"\x1b[1;33mF{i + 1}/6\x1b[0m  "
-                    f"\x1b[90m[{pet_name} E{expr_idx + 1}]\x1b[0m\n"
-                )
-                sys.stdout.write("\x1b[H" + header + ansi.rstrip("\n"))
-                sys.stdout.flush()
-                time.sleep(delay)
-            ciclo += 1
-    except KeyboardInterrupt:
-        pass
-    finally:
-        sys.stdout.write("\x1b[0m\x1b[?25h\x1b[?1049l")
-        sys.stdout.flush()
 
 
-def run_grid(fps: float, rows: int | None, expr_idx: int = 0) -> None:
-    """Todos os pets × emoções, com os seis frames animados em sincronia."""
-    cols, lines = shutil.get_terminal_size((100, 45))
-    label_width = max(map(len, PETS + STATES))
-    columns = min(len(STATES), max(1, (cols+1)//(label_width+2)))
-    entries = [(name, state) for name in PETS for state in STATES]
-    bands = (len(entries)+columns-1)//columns
-    cell_width = (cols-1-2*(columns-1))//columns
-    available_rows = min(42, cell_width//2, (lines-2)//bands-2)
-    if cell_width < label_width or available_rows < 1:
-        raise SystemExit("Terminal pequeno demais para a grade; aumente a janela.")
-    rows = min(rows if rows is not None else 42, available_rows)
-    width = max(label_width, rows*2)
-    data = {name: frames_para(rows, expr_idx, name) for name in PETS}
-    cache = []
-    for frame in range(6):
-        output = [f" E{expr_idx+1} F{frame+1}/6 | Ctrl+C para sair"[:cols-1]]
-        for start in range(0, len(entries), columns):
-            cells = []
-            for name, state in entries[start:start+columns]:
-                ansi, _ = matrix_to_ansi(data[name][state][frame])
-                padding = width-rows*2
-                cells.append([name.center(width), state.center(width)] +
-                             [" "*(padding//2)+line+" "*(padding-padding//2)
-                              for line in ansi.splitlines()])
-            output.extend("  ".join(cell[y] for cell in cells) for y in range(rows+2))
-        cache.append("\n".join(output))
-
-    try:
-        sys.stdout.write("\x1b[?1049h\x1b[?25l")
-        while True:
-            for ansi in cache:
-                sys.stdout.write("\x1b[H"+ansi)
-                sys.stdout.flush()
-                time.sleep(1.0/fps)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        sys.stdout.write("\x1b[0m\x1b[?25h\x1b[?1049l")
-        sys.stdout.flush()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Ghostty Pet Virtual — desenho procedural")
-    parser.add_argument("-s", "--state", choices=STATES)
-    parser.add_argument("--pet", choices=PETS, help="Seleciona um único personagem (padrão: grade de todos)")
-    parser.add_argument("--demo", action="store_true", help="Alterna entre as emocoes")
-    parser.add_argument("--export", metavar="PASTA", help="Exporta os 24 frames .ansi")
-    parser.add_argument("--rows", type=int, help="Altura do mascote em linhas (padrao: terminal)")
-    parser.add_argument(
-        "--state-file",
-        default=None,
-        help="Arquivo lido a cada ciclo para trocar de estado",
-    )
-    parser.add_argument("--expression", type=int, choices=range(1, 5), default=1,
-                        help="Expressão facial 1..4 (independente da pose)")
-    parser.add_argument("--fps", type=float, default=6.5)
-    args = parser.parse_args()
-    if not math.isfinite(args.fps) or args.fps <= 0:
-        parser.error("--fps deve ser positivo e finito")
-    if args.rows is not None and not 1 <= args.rows <= 120:
-        parser.error("--rows deve ficar entre 1 e 120")
-    if not (args.pet or args.state or args.demo or args.export or args.state_file):
-        run_grid(args.fps, args.rows, args.expression-1)
-    else:
-        state_file = args.state_file or os.path.join(os.path.expanduser("~"), ".ghostty_pet.state")
-        run_pet(args.state or "comemorando", args.demo, args.export, state_file,
-                args.fps, args.rows, args.expression-1, args.pet or "antigravity")
 
 
-if __name__ == "__main__":
-    main()

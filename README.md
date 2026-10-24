@@ -59,8 +59,8 @@ Variáveis opcionais:
 
 ## Limitações
 
-- Antigravity: só o caminho do proxy. A descoberta direta do servidor de linguagem (via `/proc`) da versão Python não foi portada.
-- Imagens dos mascotes em caracteres (meio-bloco), sem o modo de imagem do terminal da versão Python.
+- Antigravity: só o caminho do proxy. A descoberta direta do servidor de linguagem (via `/proc`) não foi portada.
+- Mascotes desenhados em caracteres (meio-bloco). Não há modo de imagem do terminal.
 - Testado em Linux.
 
 ## Desenvolvimento
@@ -71,7 +71,7 @@ npm test          # testes e smoke test da extensão
 npm run typecheck
 ```
 
-`src/pets-data.ts` é gerado a partir de `notutil/pets.py` (versão Python, mantida só como referência de desenho):
+`src/pets-data.ts` é gerado a partir de `notutil/pets.py` (o gerador procedural dos sprites; o restante da versão Python saiu do repositório e continua no histórico do git):
 
 ```sh
 npm run export-pets   # requer python3

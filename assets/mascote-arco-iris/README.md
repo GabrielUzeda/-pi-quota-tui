@@ -72,12 +72,9 @@ compressão, então são aproximações de referência, não valores exatos).
 
 ## Uso como referência do pet
 
-O `pet.py` redesenha o mascote com geometria, gradiente e bitmaps faciais
+O gerador `notutil/pets.py` redesenha o mascote com geometria, gradiente e bitmaps faciais
 próprios. Não carrega estes PNGs nem embute pixels extraídos deles.
 As imagens desta pasta são apenas referências visuais.
-
-Veja [o guia do pet](../../README.md) e a
-[prévia dos 24 desenhos](../../previews/pet-procedural.png).
 
 ## Notas para implementação
 

@@ -1,1 +1,1 @@
-"""Notutil: monitor de quotas com pets pixel-art."""
+"""Gerador dos mascotes pixel-art; usado so por scripts/export_pets_data.py."""

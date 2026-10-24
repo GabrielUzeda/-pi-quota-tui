@@ -72,12 +72,11 @@ compressão, então são aproximações de referência, não valores exatos).
 
 ## Pet redesenhado por código
 
-`python3 pet.py --pet opencode --demo` executa o monitor procedural inspirado
 nesta cartela. Não lê nem embute os recortes desta pasta.
 O desenho inclui gabinete branco, tela escura, quatro expressões por emoção,
 braços e sapatos independentes, inclinações, salto, suor e lágrimas.
 
-[Prévia dos 24 frames](../../previews/monitor-procedural.png) ·
+
 [Guia completo](../../README.md)
 
 ## Notas para implementação
