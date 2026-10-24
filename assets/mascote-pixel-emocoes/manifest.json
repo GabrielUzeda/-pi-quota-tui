@@ -1,0 +1,1049 @@
+{
+  "fonte": "Folha de Sprites Pixel Art_ Emoções.png",
+  "tamanho_fonte": [
+    1536,
+    1024
+  ],
+  "paleta": {
+    "corpo": "#f4f2ee",
+    "contorno": "#000000",
+    "tela": "#000000",
+    "fundo_painel": "#14141c",
+    "celula": "#282830",
+    "header": "#081820"
+  },
+  "estados": {
+    "comemorando": {
+      "titulo": "COMEMORANDO",
+      "hero": {
+        "arquivo": "hero/comemorando.png",
+        "bbox": [
+          0,
+          4,
+          277,
+          247
+        ]
+      },
+      "frames": [
+        {
+          "arquivo": "frames/comemorando/f1.png",
+          "bbox": [
+            286,
+            64,
+            106,
+            182
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "frames/comemorando/f2.png",
+          "bbox": [
+            391,
+            64,
+            106,
+            182
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "frames/comemorando/f3.png",
+          "bbox": [
+            496,
+            64,
+            106,
+            182
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "frames/comemorando/f4.png",
+          "bbox": [
+            602,
+            64,
+            106,
+            182
+          ],
+          "indice": 4
+        },
+        {
+          "arquivo": "frames/comemorando/f5.png",
+          "bbox": [
+            707,
+            64,
+            106,
+            182
+          ],
+          "indice": 5
+        },
+        {
+          "arquivo": "frames/comemorando/f6.png",
+          "bbox": [
+            812,
+            64,
+            106,
+            182
+          ],
+          "indice": 6
+        }
+      ],
+      "expressoes": [
+        {
+          "arquivo": "expressoes/comemorando/e1.png",
+          "bbox": [
+            941,
+            58,
+            83,
+            94
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "expressoes/comemorando/e2.png",
+          "bbox": [
+            941,
+            151,
+            83,
+            94
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "expressoes/comemorando/e3.png",
+          "bbox": [
+            1026,
+            58,
+            83,
+            94
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "expressoes/comemorando/e4.png",
+          "bbox": [
+            1026,
+            151,
+            83,
+            94
+          ],
+          "indice": 4
+        }
+      ],
+      "bracos": [
+        {
+          "arquivo": "bracos/comemorando/x-2_y0.png",
+          "bbox": [
+            1126,
+            56,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            0
+          ],
+          "rotulo_original": "-2,0"
+        },
+        {
+          "arquivo": "bracos/comemorando/x-1_y-1.png",
+          "bbox": [
+            1206,
+            56,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            -1
+          ],
+          "rotulo_original": "-1,-1"
+        },
+        {
+          "arquivo": "bracos/comemorando/x0_y-2.png",
+          "bbox": [
+            1286,
+            56,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            -2
+          ],
+          "rotulo_original": "0,-2"
+        },
+        {
+          "arquivo": "bracos/comemorando/x1_y-1.png",
+          "bbox": [
+            1366,
+            56,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            -1
+          ],
+          "rotulo_original": "1,-1"
+        },
+        {
+          "arquivo": "bracos/comemorando/x2_y0.png",
+          "bbox": [
+            1446,
+            56,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            0
+          ],
+          "rotulo_original": "2,0"
+        },
+        {
+          "arquivo": "bracos/comemorando/x-2_y1.png",
+          "bbox": [
+            1126,
+            150,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            1
+          ],
+          "rotulo_original": "-2,1"
+        },
+        {
+          "arquivo": "bracos/comemorando/x-1_y2.png",
+          "bbox": [
+            1206,
+            150,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            2
+          ],
+          "rotulo_original": "-1,2"
+        },
+        {
+          "arquivo": "bracos/comemorando/x0_y2.png",
+          "bbox": [
+            1286,
+            150,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            2
+          ],
+          "rotulo_original": "0,2"
+        },
+        {
+          "arquivo": "bracos/comemorando/x1_y2.png",
+          "bbox": [
+            1366,
+            150,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            2
+          ],
+          "rotulo_original": "1,2"
+        },
+        {
+          "arquivo": "bracos/comemorando/x2_y1.png",
+          "bbox": [
+            1446,
+            150,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            1
+          ],
+          "rotulo_original": "2,1"
+        }
+      ]
+    },
+    "triste": {
+      "titulo": "TRISTE",
+      "hero": {
+        "arquivo": "hero/triste.png",
+        "bbox": [
+          0,
+          258,
+          277,
+          247
+        ]
+      },
+      "frames": [
+        {
+          "arquivo": "frames/triste/f1.png",
+          "bbox": [
+            286,
+            318,
+            106,
+            182
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "frames/triste/f2.png",
+          "bbox": [
+            391,
+            318,
+            106,
+            182
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "frames/triste/f3.png",
+          "bbox": [
+            496,
+            318,
+            106,
+            182
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "frames/triste/f4.png",
+          "bbox": [
+            602,
+            318,
+            106,
+            182
+          ],
+          "indice": 4
+        },
+        {
+          "arquivo": "frames/triste/f5.png",
+          "bbox": [
+            707,
+            318,
+            106,
+            182
+          ],
+          "indice": 5
+        },
+        {
+          "arquivo": "frames/triste/f6.png",
+          "bbox": [
+            812,
+            318,
+            106,
+            182
+          ],
+          "indice": 6
+        }
+      ],
+      "expressoes": [
+        {
+          "arquivo": "expressoes/triste/e1.png",
+          "bbox": [
+            941,
+            312,
+            83,
+            94
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "expressoes/triste/e2.png",
+          "bbox": [
+            941,
+            405,
+            83,
+            94
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "expressoes/triste/e3.png",
+          "bbox": [
+            1026,
+            312,
+            83,
+            94
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "expressoes/triste/e4.png",
+          "bbox": [
+            1026,
+            405,
+            83,
+            94
+          ],
+          "indice": 4
+        }
+      ],
+      "bracos": [
+        {
+          "arquivo": "bracos/triste/x-2_y1.png",
+          "bbox": [
+            1126,
+            310,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            1
+          ],
+          "rotulo_original": "-2,1"
+        },
+        {
+          "arquivo": "bracos/triste/x-1_y1.png",
+          "bbox": [
+            1206,
+            310,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            1
+          ],
+          "rotulo_original": "-1,1"
+        },
+        {
+          "arquivo": "bracos/triste/x0_y1.png",
+          "bbox": [
+            1286,
+            310,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            1
+          ],
+          "rotulo_original": "0,1"
+        },
+        {
+          "arquivo": "bracos/triste/x1_y1.png",
+          "bbox": [
+            1366,
+            310,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            1
+          ],
+          "rotulo_original": "1,1"
+        },
+        {
+          "arquivo": "bracos/triste/x2_y1.png",
+          "bbox": [
+            1446,
+            310,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            1
+          ],
+          "rotulo_original": "2,1"
+        },
+        {
+          "arquivo": "bracos/triste/x-2_y2.png",
+          "bbox": [
+            1126,
+            404,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            2
+          ],
+          "rotulo_original": "-2,2"
+        },
+        {
+          "arquivo": "bracos/triste/x-1_y2.png",
+          "bbox": [
+            1206,
+            404,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            2
+          ],
+          "rotulo_original": "-1,2"
+        },
+        {
+          "arquivo": "bracos/triste/x0_y3.png",
+          "bbox": [
+            1286,
+            404,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            3
+          ],
+          "rotulo_original": "0,3"
+        },
+        {
+          "arquivo": "bracos/triste/x1_y2.png",
+          "bbox": [
+            1366,
+            404,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            2
+          ],
+          "rotulo_original": "1,2"
+        },
+        {
+          "arquivo": "bracos/triste/x2_y2.png",
+          "bbox": [
+            1446,
+            404,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            2
+          ],
+          "rotulo_original": "2,2"
+        }
+      ]
+    },
+    "desesperado": {
+      "titulo": "DESESPERADO",
+      "hero": {
+        "arquivo": "hero/desesperado.png",
+        "bbox": [
+          0,
+          513,
+          277,
+          247
+        ]
+      },
+      "frames": [
+        {
+          "arquivo": "frames/desesperado/f1.png",
+          "bbox": [
+            286,
+            573,
+            106,
+            182
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "frames/desesperado/f2.png",
+          "bbox": [
+            391,
+            573,
+            106,
+            182
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "frames/desesperado/f3.png",
+          "bbox": [
+            496,
+            573,
+            106,
+            182
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "frames/desesperado/f4.png",
+          "bbox": [
+            602,
+            573,
+            106,
+            182
+          ],
+          "indice": 4
+        },
+        {
+          "arquivo": "frames/desesperado/f5.png",
+          "bbox": [
+            707,
+            573,
+            106,
+            182
+          ],
+          "indice": 5
+        },
+        {
+          "arquivo": "frames/desesperado/f6.png",
+          "bbox": [
+            812,
+            573,
+            106,
+            182
+          ],
+          "indice": 6
+        }
+      ],
+      "expressoes": [
+        {
+          "arquivo": "expressoes/desesperado/e1.png",
+          "bbox": [
+            941,
+            567,
+            83,
+            94
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "expressoes/desesperado/e2.png",
+          "bbox": [
+            941,
+            660,
+            83,
+            94
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "expressoes/desesperado/e3.png",
+          "bbox": [
+            1026,
+            567,
+            83,
+            94
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "expressoes/desesperado/e4.png",
+          "bbox": [
+            1026,
+            660,
+            83,
+            94
+          ],
+          "indice": 4
+        }
+      ],
+      "bracos": [
+        {
+          "arquivo": "bracos/desesperado/x-2_y-1.png",
+          "bbox": [
+            1126,
+            565,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            -1
+          ],
+          "rotulo_original": "-2,-1"
+        },
+        {
+          "arquivo": "bracos/desesperado/x-1_y-2.png",
+          "bbox": [
+            1206,
+            565,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            -2
+          ],
+          "rotulo_original": "-1,-2"
+        },
+        {
+          "arquivo": "bracos/desesperado/x0_y-2.png",
+          "bbox": [
+            1286,
+            565,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            -2
+          ],
+          "rotulo_original": "0,-2"
+        },
+        {
+          "arquivo": "bracos/desesperado/x1_y-2.png",
+          "bbox": [
+            1366,
+            565,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            -2
+          ],
+          "rotulo_original": "1,-2"
+        },
+        {
+          "arquivo": "bracos/desesperado/x2_y-1.png",
+          "bbox": [
+            1446,
+            565,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            -1
+          ],
+          "rotulo_original": "2,-1"
+        },
+        {
+          "arquivo": "bracos/desesperado/x-2_y0.png",
+          "bbox": [
+            1126,
+            659,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            0
+          ],
+          "rotulo_original": "-2,0"
+        },
+        {
+          "arquivo": "bracos/desesperado/x-1_y1.png",
+          "bbox": [
+            1206,
+            659,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            1
+          ],
+          "rotulo_original": "-1,1"
+        },
+        {
+          "arquivo": "bracos/desesperado/x0_y2.png",
+          "bbox": [
+            1286,
+            659,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            2
+          ],
+          "rotulo_original": "0,2"
+        },
+        {
+          "arquivo": "bracos/desesperado/x1_y1.png",
+          "bbox": [
+            1366,
+            659,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            1
+          ],
+          "rotulo_original": "1,1"
+        },
+        {
+          "arquivo": "bracos/desesperado/x2_y0.png",
+          "bbox": [
+            1446,
+            659,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            0
+          ],
+          "rotulo_original": "2,0"
+        }
+      ]
+    },
+    "concentrado": {
+      "titulo": "CONCENTRADO",
+      "hero": {
+        "arquivo": "hero/concentrado.png",
+        "bbox": [
+          0,
+          769,
+          277,
+          247
+        ]
+      },
+      "frames": [
+        {
+          "arquivo": "frames/concentrado/f1.png",
+          "bbox": [
+            286,
+            829,
+            106,
+            182
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "frames/concentrado/f2.png",
+          "bbox": [
+            391,
+            829,
+            106,
+            182
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "frames/concentrado/f3.png",
+          "bbox": [
+            496,
+            829,
+            106,
+            182
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "frames/concentrado/f4.png",
+          "bbox": [
+            602,
+            829,
+            106,
+            182
+          ],
+          "indice": 4
+        },
+        {
+          "arquivo": "frames/concentrado/f5.png",
+          "bbox": [
+            707,
+            829,
+            106,
+            182
+          ],
+          "indice": 5
+        },
+        {
+          "arquivo": "frames/concentrado/f6.png",
+          "bbox": [
+            812,
+            829,
+            106,
+            182
+          ],
+          "indice": 6
+        }
+      ],
+      "expressoes": [
+        {
+          "arquivo": "expressoes/concentrado/e1.png",
+          "bbox": [
+            941,
+            823,
+            83,
+            94
+          ],
+          "indice": 1
+        },
+        {
+          "arquivo": "expressoes/concentrado/e2.png",
+          "bbox": [
+            941,
+            916,
+            83,
+            94
+          ],
+          "indice": 2
+        },
+        {
+          "arquivo": "expressoes/concentrado/e3.png",
+          "bbox": [
+            1026,
+            823,
+            83,
+            94
+          ],
+          "indice": 3
+        },
+        {
+          "arquivo": "expressoes/concentrado/e4.png",
+          "bbox": [
+            1026,
+            916,
+            83,
+            94
+          ],
+          "indice": 4
+        }
+      ],
+      "bracos": [
+        {
+          "arquivo": "bracos/concentrado/x-2_y0.png",
+          "bbox": [
+            1126,
+            821,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            0
+          ],
+          "rotulo_original": "-2,0"
+        },
+        {
+          "arquivo": "bracos/concentrado/x-1_y-1.png",
+          "bbox": [
+            1206,
+            821,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            -1
+          ],
+          "rotulo_original": "-1,-1"
+        },
+        {
+          "arquivo": "bracos/concentrado/x0_y-2.png",
+          "bbox": [
+            1286,
+            821,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            -2
+          ],
+          "rotulo_original": "0,-2"
+        },
+        {
+          "arquivo": "bracos/concentrado/x1_y-1.png",
+          "bbox": [
+            1366,
+            821,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            -1
+          ],
+          "rotulo_original": "1,-1"
+        },
+        {
+          "arquivo": "bracos/concentrado/x2_y0.png",
+          "bbox": [
+            1446,
+            821,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            0
+          ],
+          "rotulo_original": "2,0"
+        },
+        {
+          "arquivo": "bracos/concentrado/x-2_y1.png",
+          "bbox": [
+            1126,
+            915,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -2,
+            1
+          ],
+          "rotulo_original": "-2,1"
+        },
+        {
+          "arquivo": "bracos/concentrado/x-1_y1.png",
+          "bbox": [
+            1206,
+            915,
+            80,
+            94
+          ],
+          "deslocamento": [
+            -1,
+            1
+          ],
+          "rotulo_original": "-1,1"
+        },
+        {
+          "arquivo": "bracos/concentrado/x0_y2.png",
+          "bbox": [
+            1286,
+            915,
+            80,
+            94
+          ],
+          "deslocamento": [
+            0,
+            2
+          ],
+          "rotulo_original": "0,2"
+        },
+        {
+          "arquivo": "bracos/concentrado/x1_y1.png",
+          "bbox": [
+            1366,
+            915,
+            80,
+            94
+          ],
+          "deslocamento": [
+            1,
+            1
+          ],
+          "rotulo_original": "1,1"
+        },
+        {
+          "arquivo": "bracos/concentrado/x2_y1.png",
+          "bbox": [
+            1446,
+            915,
+            80,
+            94
+          ],
+          "deslocamento": [
+            2,
+            1
+          ],
+          "rotulo_original": "2,1"
+        }
+      ]
+    }
+  }
+}
