@@ -1,18 +1,26 @@
 {
   "name": "pi-quota-tui",
-  "version": "0.2.0",
-  "description": "Cotas de IA das assinaturas numa lista ANSI no painel do pi",
+  "version": "0.3.0",
+  "description": "Cotas das suas assinaturas de IA numa lista ANSI no painel do pi",
   "type": "module",
   "keywords": [
     "pi-package",
     "pi-extension",
     "quota",
-    "ansi"
+    "cotas",
+    "antigravity",
+    "openai-codex",
+    "claude-code",
+    "opencode",
+    "commandcode",
+    "ansi",
+    "tui"
   ],
   "pi": {
     "extensions": [
       "./src/index.ts"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/GabrielUzeda/pi-quota-tui/main/assets/preview.svg"
   },
   "scripts": {
     "test": "node --test \"tests/*.test.ts\" && node tests/extension.smoke.mjs",
@@ -33,6 +41,7 @@
   },
   "files": [
     "src",
+    "assets/preview.svg",
     "README.md",
     "LICENSE"
   ],
@@ -43,10 +52,13 @@
   "author": "gsuzeda",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gsuzeda/pi-quota-tui.git"
+    "url": "git+https://github.com/GabrielUzeda/pi-quota-tui.git"
   },
-  "homepage": "https://github.com/gsuzeda/pi-quota-tui#readme",
+  "homepage": "https://github.com/GabrielUzeda/pi-quota-tui#readme",
   "bugs": {
-    "url": "https://github.com/gsuzeda/pi-quota-tui/issues"
+    "url": "https://github.com/GabrielUzeda/pi-quota-tui/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

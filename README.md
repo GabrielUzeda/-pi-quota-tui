@@ -4,6 +4,8 @@ Painel com as cotas das suas assinaturas de IA, em texto puro ANSI, dentro do [p
 Funciona em qualquer terminal: sem imagens, sem animação, sem depender de fonte ou protocolo gráfico.
 Não envia prompts e não chama modelos: só lê o estado de uso de cada conta.
 
+![Painel de cotas logo abaixo do editor do pi](https://raw.githubusercontent.com/GabrielUzeda/pi-quota-tui/main/assets/preview.svg)
+
 Provedores: **OpenCode Go**, **Antigravity** (direto no Google, sem proxy local), **Claude Code** e **CommandCode**. O **OpenAI Codex** também, mas exige o CLI `codex` (veja abaixo).
 
 ## Instalação
@@ -15,7 +17,7 @@ pi install npm:pi-quota-tui
 Ou direto do repositório:
 
 ```sh
-pi install git:github.com/gsuzeda/pi-quota-tui
+pi install git:github.com/GabrielUzeda/pi-quota-tui
 ```
 
 Para remover: `pi remove npm:pi-quota-tui`.
@@ -47,6 +49,7 @@ CommandCode ██░░░░░░ 45m
 | `/quotas` | Mostra ou esconde o painel |
 | `/quota [all\|opencode\|agy\|commandcode]` | Relatório de texto no chat (não entra no contexto do modelo) |
 | `/usage` | Alias de `/quota` |
+| `/quota-login` | Importa as contas Antigravity do AGY ou faz o login Google na própria extensão |
 
 A ferramenta `get_quotas` entrega o mesmo relatório ao modelo, quando você pedir.
 
@@ -108,6 +111,10 @@ npm install
 npm test          # testes e smoke test da extensão
 npm run typecheck
 ```
+
+## Pacote do pi
+
+Este repositório é publicado no npm como [`pi-quota-tui`](https://www.npmjs.com/package/pi-quota-tui) com a keyword `pi-package`, o que o deixa elegível ao [catálogo de pacotes do pi](https://pi.dev/packages). O campo `pi.extensions` aponta para `./src/index.ts` e `pi.image` para a prévia acima.
 
 ## Licença
 
