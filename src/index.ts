@@ -1,48 +1,35 @@
-// notutil: cotas de assinatura de IA num painel lateral do pi, com mascotes.
+// pi-quota-tui: cotas de assinatura de IA numa lista ANSI no widget do pi.
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Markdown, type OverlayHandle } from "@earendil-works/pi-tui";
+import { Markdown } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { loginAgy } from "./agy-login.ts";
 import { report, resolveSource, SOURCE_NAMES } from "./format.ts";
-import { PANEL_MIN_TERMINAL, PANEL_WIDTH, QuotaPanel } from "./panel.ts";
+import { QuotaPanel } from "./panel.ts";
 import type { Snapshot } from "./models.ts";
 import { nowSec } from "./providers.ts";
 import { Monitor } from "./service.ts";
 
+const WIDGET = "pi-quota-tui-quotas";
+
 export default function (pi: ExtensionAPI) {
   const monitor = new Monitor();
-  let handle: OverlayHandle | undefined;
-  let close: (() => void) | undefined;
+  let shown = false;
 
-  const openPanel = (ctx: ExtensionContext) => {
-    if (!ctx.hasUI || close) return;
-    void ctx.ui
-      .custom<void>((tui, theme, _keys, done) => {
-        close = () => done();
-        return new QuotaPanel(monitor, theme, tui);
-      }, {
-        overlay: true,
-        overlayOptions: {
-          anchor: "right-center",
-          width: PANEL_WIDTH,
-          margin: { right: 1 },
-          nonCapturing: true,
-          visible: (termWidth) => termWidth >= PANEL_MIN_TERMINAL,
-        },
-        onHandle: (h) => {
-          handle = h;
-        },
-      })
-      .finally(() => {
-        close = undefined;
-        handle = undefined;
-      });
+  // Widget abaixo do editor: reserva linhas no layout, em vez de cobrir o chat.
+  const showPanel = (ctx: ExtensionContext) => {
+    if (!ctx.hasUI) return;
+    ctx.ui.setWidget(WIDGET, (_tui, theme) => new QuotaPanel(monitor, theme), { placement: "belowEditor" });
+    shown = true;
   };
 
-  const toggle = (ctx: ExtensionContext) => {
-    if (!handle) return openPanel(ctx);
-    handle.setHidden(!handle.isHidden());
+  // setWidget(undefined) desmonta o painel do dock.
+  const hidePanel = (ctx: ExtensionContext) => {
+    if (ctx.hasUI) ctx.ui.setWidget(WIDGET, undefined);
+    shown = false;
   };
+
+  const toggle = (ctx: ExtensionContext) => (shown ? hidePanel(ctx) : showPanel(ctx));
 
   const quotas = async (source: string) => {
     await monitor.refresh();
@@ -53,11 +40,11 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", (_event, ctx) => {
     monitor.start();
-    openPanel(ctx);
+    showPanel(ctx);
   });
 
-  pi.on("session_shutdown", () => {
-    close?.();
+  pi.on("session_shutdown", (_event, ctx) => {
+    hidePanel(ctx);
     monitor.stop();
   });
 
@@ -80,15 +67,27 @@ export default function (pi: ExtensionAPI) {
     description: "Alias de /quota",
     handler: reportCommand,
   });
+  pi.registerCommand("quota-login", {
+    description: "Importa as contas Antigravity do AGY ou faz o login Google",
+    handler: async (_args, ctx) => {
+      try {
+        await loginAgy((message, level) => ctx.ui.notify(message, level ?? "info"));
+        await monitor.refresh();
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : "Falha no login do Antigravity.", "error");
+      }
+    },
+  });
+
   pi.registerCommand("quotas", {
-    description: "Mostra ou esconde o painel lateral de cotas",
+    description: "Mostra ou esconde o painel de cotas",
     handler: async (_args, ctx) => toggle(ctx),
   });
 
   pi.registerTool({
     name: "get_quotas",
     label: "Get Quotas Summary",
-    description: "Consulta o uso e cotas remanescentes das contas OpenCode Zen Go, AGY e CommandCode.",
+    description: "Consulta o uso e cotas remanescentes de OpenCode Go, Antigravity, OpenAI Codex, Claude Code e CommandCode.",
     parameters: Type.Object({
       source: Type.Optional(
         Type.Union(

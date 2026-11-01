@@ -4,30 +4,27 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { bar, details, report, resolveSource, resetShort } from "../src/format.ts";
+import { bar, details, report, resolveSource } from "../src/format.ts";
 import { countdown, forecast, health, pace, resetText } from "../src/rules.ts";
 import { outdated, type Snapshot, type Window } from "../src/models.ts";
 import {
-  clamped, collapse, COLLECTORS, epoch, estimateReset, nextMonthlyReset, num, paidIndex, parseCodex,
-  parseCommandcode, parseGroups, parseJson, parseOpencode, parseProxy, readJson, readStatusline, ReadError, secret,
+  agySnapshot, clamped, collapse, COLLECTORS, epoch, estimateReset, nextMonthlyReset, num, paidIndex, parseAgyAccounts,
+  parseCodex, parseCommandcode, parseGroups, parseJson, parseOauthUsage, parseOpencode, readJson, ReadError, secret,
 } from "../src/providers.ts";
-import { frameMsFrom, QuotaPanel } from "../src/panel.ts";
-import { frameToAnsi, petFrames } from "../src/pets.ts";
+import { QuotaPanel } from "../src/panel.ts";
 import { Monitor } from "../src/service.ts";
 
 const NOW = 1_800_000_000;
-const iso = (sec: number) => new Date(sec * 1000).toISOString();
 const bad = (value: unknown) => (async () => value) as unknown as () => Promise<Snapshot[]>;
 const ok = (snapshots: Snapshot[]) => async () => snapshots;
 const win = (used: number, extra: Partial<Window> = {}): Window => ({ label: "5 horas", used, ...extra });
 const snap = (id: string, extra: Partial<Snapshot> = {}): Snapshot => ({
-  id, name: id, pet: id, windows: [win(10)], updatedAt: NOW, source: "teste", ...extra,
+  id, name: id, windows: [win(10)], updatedAt: NOW, source: "teste", ...extra,
 });
-const stripAnsi = (text: string) => text.replace(/\u001b\[[0-9;]*m/g, "");
 
 async function withEnv(vars: Record<string, string | undefined>, fn: () => Promise<void>): Promise<void> {
   const saved: Record<string, string | undefined> = {};
@@ -66,15 +63,6 @@ async function sandbox(fn: (home: string) => Promise<void>, extra: Record<string
     );
   } finally {
     await rm(home, { recursive: true, force: true });
-  }
-}
-
-async function withDir(fn: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "nt-dir-"));
-  try {
-    await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
   }
 }
 
@@ -192,47 +180,45 @@ test("nextMonthlyReset: no próprio dia da virada já passa para o mês seguinte
   assert.equal(nextMonthlyReset(16, dec20), Date.UTC(2027, 0, 16) / 1000);
 });
 
-// --- AGY (proxy local) ---
+// --- Antigravity / Cloud Code (sem proxy) ---
 
-test("AGY: conta que não é objeto é ignorada sem derrubar as outras", () => {
-  const snaps = parseProxy({ accounts: [null, { email: "a@x", quota: { groups: [] } }] }, NOW);
-  assert.equal(snaps.length, 1);
+const agyAccount = (extra: Record<string, unknown> = {}) => ({ email: "a@x", projectId: "p", refreshToken: "r", ...extra });
+const agyGroups5h = [{ displayName: "Gemini", buckets: [{ window: "5h", remainingFraction: 0.5 }] }];
+
+test("Antigravity: conta sem refreshToken não entra na lista; lixo não derruba as demais", () => {
+  const accounts = parseAgyAccounts([null, 3, "x", { email: "a@x" }, { email: "b@x", refreshToken: "r" }]);
+  assert.equal(accounts.length, 1);
+  assert.equal(parseAgyAccounts(undefined).length, 0);
 });
 
-test("AGY: só contas inválidas vira erro", () => {
-  assert.throws(() => parseProxy({ accounts: [null, 3, "x"] }, NOW), ReadError);
+test("Antigravity: conta vira snapshot com id derivado do e-mail e sem somar percentuais", () => {
+  const accounts = parseAgyAccounts([agyAccount()]);
+  const s = agySnapshot(accounts[0], 0, agyGroups5h, NOW);
+  assert.equal(s.id, "antigravity/" + createHash("sha256").update("a@x").digest("hex").slice(0, 10));
+  assert.equal(s.windows.length, 1);
+  assert.equal(s.windows[0].used, 50);
+  assert.equal(s.source, "Antigravity / Cloud Code");
+  assert.match(s.note ?? "", /não são somados/);
+  assert.equal(agySnapshot(accounts[0], 0, [], NOW).error, "Conta sem leitura de quota reconhecida.");
 });
 
-test("AGY: idade maior que o TTL marca a quota como antiga", () => {
-  const [s] = parseProxy({ accounts: [{ email: "a@x", quota: { groups: [] } }], quotaAgeMs: 900_000, quotaTtlMs: 300_000 }, NOW);
-  assert.equal(s.stale, true);
-  assert.equal(s.updatedAt, NOW - 900);
+test("Antigravity: paidIndex usa o hint e, sem ele, a conta com mais janelas lidas", () => {
+  const accounts = parseAgyAccounts([agyAccount(), agyAccount({ email: "b@x", projectId: "proj-b" })]);
+  const snaps = [agySnapshot(accounts[0], 0, agyGroups5h, NOW), agySnapshot(accounts[1], 1, [], NOW)];
+  assert.equal(paidIndex(accounts, snaps, "b@x"), 1);
+  assert.equal(paidIndex(accounts, snaps, "proj-b"), 1);
+  assert.equal(paidIndex(accounts, snaps, ""), 0);
+  // o hash da conta (id do snapshot) também serve de dica
+  assert.equal(paidIndex(accounts, snaps, snaps[1].id.split("/")[1]), 1);
 });
 
-test("AGY: cooldown negativo não bloqueia e só cooldowns de modelo ativos são contados", () => {
-  const [s] = parseProxy(
-    { accounts: [{ email: "a@x", quota: { groups: [] }, coolingDownSec: -10, modelCooldowns: { m1: 30, m2: 0, m3: "x" } }] }, NOW);
-  assert.equal(s.cooldownUntil, undefined);
-  assert.match(s.note ?? "", /COOLDOWN em 1 modelo/);
-});
-
-test("AGY: paidIndex escolhe a mesma conta que parseProxy gera, mesmo com contas inválidas antes", () => {
-  const root = { accounts: [{}, null, { email: "b@x", claudeIds: [1] }] };
-  const merged = collapse(parseProxy(root, NOW), paidIndex(root), NOW);
-  const expected = createHash("sha256").update("b@x").digest("hex").slice(0, 6);
+test("Antigravity: collapse escolhe a paga e resume as outras como BONUS", () => {
+  const accounts = parseAgyAccounts([agyAccount(), agyAccount({ email: "b@x" })]);
+  const snaps = [agySnapshot(accounts[0], 0, agyGroups5h, NOW), agySnapshot(accounts[1], 1, [], NOW)];
+  const merged = collapse(snaps, paidIndex(accounts, snaps, "a@x"), NOW);
+  const expected = createHash("sha256").update("a@x").digest("hex").slice(0, 6);
+  assert.equal(merged.id, "antigravity");
   assert.match(merged.note ?? "", new RegExp("^PAGA " + expected));
-});
-
-test("AGY: dica NOTUTIL_AGY_PAID aponta a conta certa mesmo com nulo antes", () => {
-  const root = { accounts: [null, { email: "a@x" }, { email: "b@x" }] };
-  const merged = collapse(parseProxy(root, NOW), paidIndex(root, "b@x"), NOW);
-  const expected = createHash("sha256").update("b@x").digest("hex").slice(0, 6);
-  assert.match(merged.note ?? "", new RegExp("^PAGA " + expected));
-});
-
-test("AGY: contas extras sem leitura entram como BONUS sem valores inventados", () => {
-  const root = { accounts: [{ email: "a@x", quota: { groups: [] } }, { email: "b@x", quota: { error: "x" } }] };
-  const merged = collapse(parseProxy(root, NOW), 0, NOW);
   assert.match(merged.note ?? "", /BONUS 1 contas sem leitura/);
 });
 
@@ -253,6 +239,17 @@ test("AGY: parseGroups ignora grupos e buckets inválidos e limita a fração", 
   assert.equal(w.length, 1);
   assert.equal(w[0].used, 0);
   assert.equal(w[0].group, "Gemini Pro");
+});
+
+test("AGY: grupo do Argon vira \"Argon\" e mantém a janela semanal", () => {
+  const [w] = parseGroups([{
+    displayName: "Gemini 4 Argon",
+    buckets: [{ window: "weekly", remainingFraction: 0.0154, resetTime: "2026-10-26T14:39:30Z" }],
+  }]);
+  assert.equal(w.group, "Argon");
+  assert.equal(w.label, "Semanal");
+  assert.equal(w.duration, 604800);
+  assert.ok(Math.abs(w.used - 98.46) < 0.01);
 });
 
 // --- Codex ---
@@ -293,63 +290,24 @@ test("Codex: leitura pelo app-server (falso) traz as janelas, mesmo com lixo ant
     });
   }));
 
-// --- Claude: statusLine e histórico ---
-
-test("statusLine: percentual acima de 100 vira 100 e captura recente não fica vencida", () =>
-  withDir(async (dir) => {
-    const path = join(dir, "c.json");
-    await writeFile(path, JSON.stringify({ captured_at: iso(NOW - 60), rate_limits: { five_hour: { used_percentage: 150, resets_at: NOW + 3600 } } }));
-    const s = await readStatusline(NOW, path);
-    assert.equal(s?.windows[0].used, 100);
-    assert.equal(s?.stale, false);
+test("Codex: chaves de outros provedores não vão para o subprocesso", () =>
+  sandbox(async (home) => {
+    const bin = await fakeCodex(home, ['echo "OPENCODE_GO_KEY=${OPENCODE_GO_KEY:-ausente}" > "$HOME/leak.txt"']);
+    await withEnv({ PATH: bin, OPENCODE_GO_KEY: "chave-secreta" }, async () => {
+      await COLLECTORS.openai().catch(() => undefined);
+      assert.equal(await readFile(join(home, "leak.txt"), "utf8"), "OPENCODE_GO_KEY=ausente\n");
+    });
   }));
 
-test("statusLine: reset já passado não vira quota", () =>
-  withDir(async (dir) => {
-    const path = join(dir, "c.json");
-    await writeFile(path, JSON.stringify({ captured_at: iso(NOW), rate_limits: { five_hour: { used_percentage: 10, resets_at: NOW - 10 } } }));
-    assert.equal(await readStatusline(NOW, path), undefined);
-  }));
-
-test("statusLine: captura antiga fica marcada como vencida", () =>
-  withDir(async (dir) => {
-    const path = join(dir, "c.json");
-    await writeFile(path, JSON.stringify({ captured_at: iso(NOW - 3600), rate_limits: { five_hour: { used_percentage: 10, resets_at: NOW + 3600 } } }));
-    const s = await readStatusline(NOW, path);
-    assert.equal(s?.stale, true);
-    assert.match(s?.note ?? "", /vencido/);
-  }));
-
-test("statusLine: arquivo corrompido, lista, sem rate_limits ou inexistente é ignorado", () =>
-  withDir(async (dir) => {
-    const cases = ["{nope", "[1]", "{}"];
-    for (const [index, content] of cases.entries()) {
-      const path = join(dir, "c" + index + ".json");
-      await writeFile(path, content);
-      assert.equal(await readStatusline(NOW, path), undefined, content);
-    }
-    assert.equal(await readStatusline(NOW, join(dir, "nao-existe.json")), undefined);
-  }));
 
 test("Claude: sem nenhum dado local fica desligado com a instrução", () =>
   sandbox(async () => {
     const [s] = await COLLECTORS.claude();
     assert.equal(s.disabled, true);
-    assert.match(s.error ?? "", /statusLine/);
+    assert.match(s.error ?? "", /app desktop/);
   }));
 
-test("Claude: statusLine com reset passado e sem histórico cai na instrução", () =>
-  sandbox(async (home) => {
-    const real = Date.now() / 1000;
-    const dir = join(home, "data", "notutil");
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "claude-limits.json"),
-      JSON.stringify({ captured_at: iso(real), rate_limits: { five_hour: { used_percentage: 10, resets_at: real - 100 } } }));
-    const [s] = await COLLECTORS.claude();
-    assert.equal(s.disabled, true);
-  }));
-
-test("Claude: histórico corrompido vira erro no card, sem derrubar a coleta", () =>
+test("Claude: histórico corrompido vira erro no relatório, sem derrubar a coleta", () =>
   sandbox(async (home) => {
     const dir = join(home, "config", "Claude");
     await mkdir(dir, { recursive: true });
@@ -372,7 +330,7 @@ test("Claude: histórico com várias contas usa só a conta mais recente", () =>
     assert.equal(s.windows[0].used, 40);
   }));
 
-test("Claude: histórico sem uso registrado não inventa janela", () =>
+test("Claude: histórico sem uso registrado não inventa janela e deixa o OAuth assumir", () =>
   sandbox(async (home) => {
     const real = Date.now() / 1000;
     const dir = join(home, "config", "Claude");
@@ -380,7 +338,8 @@ test("Claude: histórico sem uso registrado não inventa janela", () =>
     await writeFile(join(dir, "plan-usage-history.json"), JSON.stringify({ samples: [{ t: real * 1000, org: "A", u: {} }] }));
     const [s] = await COLLECTORS.claude();
     assert.equal(s.windows.length, 0);
-    assert.notEqual(s.disabled, true);
+    assert.equal(s.disabled, true);
+    assert.match(s.error ?? "", /login/);
   }));
 
 test("Claude: janela de 5h expirada não estima horário de renovação", () =>
@@ -410,13 +369,45 @@ test("estimateReset: sem amostra anterior de referência não estima", () => {
   assert.equal(estimateReset(rows, "fh", 0, NOW, 18000)[0], undefined);
 });
 
+// --- Claude: OAuth da assinatura ---
+
+test("OAuth do Claude: utilization e resets_at viram janelas de 5h e semanal", () => {
+  const s = parseOauthUsage({
+    five_hour: { utilization: 42, resets_at: "2030-01-01T00:00:00Z" },
+    seven_day: { utilization: 180, resets_at: "2030-01-02T00:00:00Z", locked_reason: "limit" },
+    extra_usage: { utilization: 99 },
+  }, NOW);
+  assert.deepEqual(s.windows.map((w) => [w.label, w.used, w.duration]), [["5 horas", 42, 18000], ["Semanal", 100, 604800]]);
+  assert.equal(s.windows[0].resetsAt, Date.parse("2030-01-01T00:00:00Z") / 1000);
+  assert.match(s.note ?? "", /bloqueado: Semanal/);
+});
+
+test("OAuth do Claude: sem janela reconhecida é ReadError", () => {
+  assert.throws(() => parseOauthUsage({ extra_usage: { utilization: 10 }, seven_day_opus: { utilization: 5 } }, NOW), ReadError);
+});
+
 // --- credenciais ---
 
-test("secret: variável só com espaços cai para o auth.json", () =>
+test("secret: auth.json tem prioridade sobre a variável de ambiente", () =>
   sandbox(async (home) => {
     await writeAuth(home, JSON.stringify({ "opencode-go": { key: "from-file" } }));
-    await withEnv({ OPENCODE_GO_KEY: "   " }, async () => {
+    await withEnv({ OPENCODE_GO_KEY: "from-env" }, async () => {
       assert.equal(await secret(["OPENCODE_GO_KEY"], "opencode-go"), "from-file");
+    });
+  }));
+
+test("secret: sem auth.json a variável de ambiente é o fallback", () =>
+  sandbox(async () => {
+    await withEnv({ OPENCODE_GO_KEY: "from-env" }, async () => {
+      assert.equal(await secret(["OPENCODE_GO_KEY"], "opencode-go"), "from-env");
+    });
+  }));
+
+test("secret: chave em branco no auth.json cai para a variável de ambiente", () =>
+  sandbox(async (home) => {
+    await writeAuth(home, JSON.stringify({ "opencode-go": { key: "   " } }));
+    await withEnv({ OPENCODE_GO_KEY: "from-env" }, async () => {
+      assert.equal(await secret(["OPENCODE_GO_KEY"], "opencode-go"), "from-env");
     });
   }));
 
@@ -500,9 +491,9 @@ test("previsão: cota esgotada não inventa previsão; sem ritmo fica vazia", ()
   assert.equal(forecast(win(10), NOW), "");
 });
 
-test("saúde: cooldown tem prioridade; leitura com erro vira DESATUALIZADO", () => {
-  assert.equal(health(snap("x", { cooldownUntil: NOW + 60 }), NOW).status, "COOLDOWN");
-  assert.equal(health(snap("x", { error: "x" }), NOW).status, "DESATUALIZADO");
+test("saúde: leitura com erro ou antiga vira DESATUALIZADO", () => {
+  assert.equal(health(snap("x", { error: "x" }), NOW), "DESATUALIZADO");
+  assert.equal(health(snap("x", { updatedAt: NOW - 600 }), NOW), "DESATUALIZADO");
 });
 
 test("outdated: horário no futuro ou reset passado é antiga; desligada nunca é", () => {
@@ -516,12 +507,11 @@ test("countdown: zero, dias e horas formatam sem NaN", () => {
   assert.equal(countdown(190800), "2d 5h");
 });
 
-test("resetText e resetShort: sem reset, passado e estimado", () => {
+test("resetText: sem reset, passado e estimado", () => {
   assert.equal(resetText(win(1), NOW), "RENOVA: horario indisponivel");
   assert.equal(resetText(win(1, { resetsAt: NOW - 5 }), NOW), "AGUARDANDO NOVA LEITURA");
-  assert.equal(resetShort(win(1), NOW), "--");
-  assert.equal(resetShort(win(1, { resetsAt: NOW - 5 }), NOW), "aguardando");
-  assert.ok(resetShort(win(1, { resetsAt: NOW + 3600, estimated: true }), NOW).startsWith("~"));
+  assert.equal(resetText(win(1, { resetsAt: NOW + 3600 }), NOW), "RENOVA EM 1h 00min");
+  assert.equal(resetText(win(1, { resetsAt: NOW + 3600, estimated: true }), NOW), "RENOVA EM ~1h 00min");
 });
 
 test("barra: uso acima de 100, referência fora do intervalo e largura mínima não quebram", () => {
@@ -667,21 +657,9 @@ test("monitor: start é idempotente, stop pode repetir, provedor desconhecido d�
   assert.deepEqual(m.snapshots("nao-existe"), []);
 });
 
-// --- painel e mascotes ---
+// --- painel ---
 
 const fakeTheme = { fg: (_color: string, text: string) => text, bold: (text: string) => text } as never;
-const fakeTui = { requestRender() {} } as never;
-
-test("painel: FPS inválido cai no padrão de 2 fps; zero ou negativo desliga", () => {
-  assert.equal(frameMsFrom(undefined), 500);
-  assert.equal(frameMsFrom(""), 500);
-  assert.equal(frameMsFrom("abc"), 500);
-  assert.equal(frameMsFrom("Infinity"), 500);
-  assert.equal(frameMsFrom("0"), 0);
-  assert.equal(frameMsFrom("-3"), 0);
-  assert.equal(frameMsFrom("1000"), 100);
-  assert.equal(frameMsFrom("0.5"), 2000);
-});
 
 test("painel: nenhuma linha passa da largura, de 1 a 60 colunas", async () => {
   const m = new Monitor({
@@ -692,33 +670,20 @@ test("painel: nenhuma linha passa da largura, de 1 a 60 colunas", async () => {
     })]),
   });
   await m.refresh();
-  const panel = new QuotaPanel(m, fakeTheme, fakeTui);
+  const panel = new QuotaPanel(m, fakeTheme);
   for (let width = 1; width <= 60; width++)
     for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width, width + ": " + line);
-  panel.dispose();
   m.stop();
 });
 
-test("painel: pet desconhecido, nomes de objeto e cartão só com erro renderizam sem quebrar", async () => {
+test("painel: provedor desconhecido, nomes de objeto e cartão só com erro renderizam sem quebrar", async () => {
   const m = new Monitor({
-    zzz: ok([snap("zzz", { pet: "zzz", windows: [], error: "x" })]),
-    odd: ok([snap("odd", { pet: "__proto__", windows: [], error: "y" })]),
+    zzz: ok([snap("zzz", { windows: [], error: "x" })]),
+    odd: ok([snap("odd", { windows: [], error: "y" })]),
   });
   await m.refresh();
-  const panel = new QuotaPanel(m, fakeTheme, fakeTui);
+  const panel = new QuotaPanel(m, fakeTheme);
   assert.ok(panel.render(40).length > 0);
-  panel.dispose();
   m.stop();
 });
 
-test("pets: lista vazia, linha ímpar e caractere desconhecido não quebram a conversão", () => {
-  assert.deepEqual(frameToAnsi([]), []);
-  const odd = frameToAnsi(["..", "..", ".."]);
-  assert.equal(odd.length, 2);
-  assert.equal(stripAnsi(odd[1]), "  ");
-  assert.equal(stripAnsi(frameToAnsi(["zz", "zz"])[0]), "  ");
-});
-
-test("pets: pet inexistente não tem quadros", () => {
-  assert.equal(petFrames("nao-existe", "comemorando").length, 0);
-});

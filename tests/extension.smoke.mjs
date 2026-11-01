@@ -21,7 +21,7 @@ const pi = {
   on: (event) => events.push(event),
 };
 factory(pi);
-assert.deepEqual(commands.sort(), ["quota", "quotas", "usage"]);
+assert.deepEqual(commands.sort(), ["quota", "quota-login", "quotas", "usage"]);
 assert.deepEqual(tools, ["get_quotas"]);
 assert.ok(events.includes("session_start") && events.includes("session_shutdown"));
 console.log("smoke ok:", { commands, tools, events });

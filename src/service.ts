@@ -1,8 +1,8 @@
-// Polling independente da animação. Falhas temporárias preservam a última leitura, marcada como antiga.
+// Polling independente do painel. Falhas temporárias preservam a última leitura, marcada como antiga.
 import { COLLECTORS, ReadError } from "./providers.ts";
 import type { Snapshot } from "./models.ts";
 
-export const INTERVAL_MS = 120_000;
+const INTERVAL_MS = 120_000;
 const COLLECT_TIMEOUT_MS = 25_000;
 const PENDING = "Aguardando primeira leitura.";
 const GENERIC = "Falha interna na leitura; última quota preservada.";
@@ -27,7 +27,7 @@ export class Monitor {
     this.collectors = collectors;
     this.timeoutMs = timeoutMs;
     for (const id of Object.keys(collectors))
-      this.data.set(id, [{ id, name: NAMES[id] ?? id, pet: id, windows: [], source: "", error: PENDING, disabled: true }]);
+      this.data.set(id, [{ id, name: NAMES[id] ?? id, windows: [], source: "", error: PENDING, disabled: true }]);
   }
 
   /** Dispara uma coleta em todos os provedores; se já houver uma em andamento, reaproveita. */

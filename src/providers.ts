@@ -19,14 +19,21 @@ const isObject = (value: unknown): value is Json =>
 
 export const nowSec = () => Date.now() / 1000;
 
+/** Identificação enviada às APIs; acompanha o nome do pacote. */
+const USER_AGENT = "pi-quota-tui/0.2";
+
 /** Número dentro de um intervalo; percentual acima de 100 vira 100 em vez de sumir. */
 export function clamped(value: unknown, low: number, high: number): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(high, Math.max(low, value)) : undefined;
 }
 
-/** JSON com BOM (comum em arquivos gravados no Windows) também é aceito. */
-export function parseJson(text: string): unknown {
-  return JSON.parse(text.replace(/^\uFEFF/, ""));
+/** JSON com BOM (comum em arquivos gravados no Windows) também é aceito; lixo vira SyntaxError sem ecoar o conteúdo. */
+export function parseJson(text: string): Record<string, unknown> {
+  try {
+    return JSON.parse(text.replace(/^\uFEFF/, "")) as Record<string, unknown>;
+  } catch {
+    throw new SyntaxError("JSON inválido");
+  }
 }
 
 export function num(value: unknown, low = 0, high = 100): number | undefined {
@@ -41,7 +48,7 @@ export function epoch(value: unknown): number | undefined {
     return seconds < 253402300800 ? seconds : undefined;
   }
   if (typeof value === "string") {
-    // Sem fuso explícito, tratamos como UTC (como o notutil original).
+    // Sem fuso explícito, tratamos como UTC.
     const iso = /([zZ]|[+-]\d\d:?\d\d)$/.test(value) ? value : `${value}Z`;
     const ms = Date.parse(iso);
     return Number.isNaN(ms) ? undefined : ms / 1000;
@@ -87,13 +94,14 @@ export async function readJson(
     throw new ReadError("HTTP sem TLS permitido apenas em loopback.");
   let text: string;
   try {
-    const response = await fetch(url, {
+    const init: RequestInit = {
       method: options.body === undefined ? "GET" : "POST",
-      headers: options.headers,
-      body: options.body,
       redirect: "manual",
       signal: AbortSignal.timeout(options.timeout * 1000),
-    });
+    };
+    if (options.headers) init.headers = options.headers;
+    if (options.body !== undefined) init.body = options.body;
+    const response = await fetch(url, init);
     if (!response.ok) throw new ReadError(`Consulta recusada (HTTP ${response.status}).`);
     text = await readCapped(response);
   } catch (error) {
@@ -110,7 +118,7 @@ export async function readJson(
   return data;
 }
 
-// --- credenciais: variável de ambiente primeiro, depois o auth.json do Pi (somente se privado) ---
+// --- credenciais: auth.json do Pi (somente se privado) primeiro, variáveis de ambiente como fallback ---
 
 // Resolvido a cada chamada: HOME pode mudar (testes, sessões diferentes).
 const piAuth = () => join(homedir(), ".pi", "agent", "auth.json");
@@ -132,16 +140,24 @@ async function authEntry(section: string): Promise<Json> {
 }
 
 export async function secret(envNames: string[], section: string): Promise<string> {
+  const key = (await authEntry(section)).key;
+  if (typeof key === "string" && key.trim()) return key.trim();
   for (const name of envNames) {
     const value = process.env[name]?.trim();
     if (value) return value;
   }
-  const key = (await authEntry(section)).key;
-  return typeof key === "string" ? key.trim() : "";
+  return "";
+}
+
+/** Token OAuth guardado pelo login do pi (`type: "oauth"`); vazio quando a seção é api key ou não existe. */
+async function oauthAccess(section: string): Promise<string> {
+  const entry = await authEntry(section);
+  const token = entry.type === "oauth" ? entry.access : undefined;
+  return typeof token === "string" ? token.trim() : "";
 }
 
 function disabled(id: string, name: string, source: string, error: string): Snapshot {
-  return { id, name, pet: id, windows: [], source, error, disabled: true };
+  return { id, name, windows: [], source, error, disabled: true };
 }
 
 // --- OpenCode Go: assinatura, não sessões nem saldo Zen ---
@@ -164,13 +180,13 @@ export function parseOpencode(root: Json, now: number): Snapshot {
     }
   }
   if (!windows.length) throw new ReadError("OpenCode não informou janelas de quota reconhecidas.");
-  return { id: "opencode", name: "OpenCode Go", pet: "opencode", windows, updatedAt: now, source: "OpenCode Go / usage" };
+  return { id: "opencode", name: "OpenCode Go", windows, updatedAt: now, source: "OpenCode Go / usage" };
 }
 
 async function collectOpencode(): Promise<Snapshot[]> {
   const key = await secret(["OPENCODE_GO_KEY"], "opencode-go");
   if (!key)
-    return [disabled("opencode", "OpenCode Go", "OpenCode Go / usage", "Defina OPENCODE_GO_KEY para consultar a assinatura.")];
+    return [disabled("opencode", "OpenCode Go", "OpenCode Go / usage", "Sem credencial: use a entrada `opencode-go` em ~/.pi/agent/auth.json (ou OPENCODE_GO_KEY).")];
   const root = await readJson(OPENCODE_URL, {
     headers: { Authorization: `Bearer ${key}`, "User-Agent": "opencode/1.18.30" },
     timeout: 10,
@@ -221,22 +237,43 @@ export function parseCommandcode(credits: Json, summary: Json | undefined, now: 
   const balance = monthly + purchased + free;
   let note = `Saldo ${balance.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} créditos`;
   if (!windows.some((w) => w.label !== "Mensal")) note += " | sem janela de 5h/semanal nesta conta";
-  return { id: "commandcode", name: "CommandCode", pet: "commandcode", windows, updatedAt: now, source: "CommandCode / billing", note };
+  return { id: "commandcode", name: "CommandCode", windows, updatedAt: now, source: "CommandCode / billing", note };
 }
 
 async function collectCommandcode(): Promise<Snapshot[]> {
   const key = await secret(["COMMAND_CODE_API_KEY", "COMMANDCODE_API_KEY"], "commandcode");
-  if (!key) return [disabled("commandcode", "CommandCode", "CommandCode / billing", "Defina COMMAND_CODE_API_KEY para consultar os créditos.")];
-  const headers = { Accept: "application/json", "User-Agent": "notutil/0.1", Authorization: `Bearer ${key}` };
+  if (!key) return [disabled("commandcode", "CommandCode", "CommandCode / billing", "Sem credencial: use a entrada `commandcode` em ~/.pi/agent/auth.json (ou COMMAND_CODE_API_KEY).")];
+  const headers = { Accept: "application/json", "User-Agent": USER_AGENT, Authorization: `Bearer ${key}` };
   const credits = await readJson(`${CC_BASE}/billing/credits`, { headers, timeout: 10 });
   const summary = await readJson(`${CC_BASE}/usage/summary`, { headers, timeout: 10 }).catch(() => undefined);
   const day = Number((await authEntry("commandcode")).resetDay ?? 16);
   return [parseCommandcode(credits, summary, nowSec(), Number.isFinite(day) ? day : 16)];
 }
 
-// --- AGY: proxy local agy-local-proxy (contas, grupos e cooldowns) ---
+// --- Antigravity / Cloud Code: OAuth próprio, sem proxy local ---
 
-const AGY_URL = "http://127.0.0.1:20128/v1/accounts/status";
+const AGY_SOURCE = "Antigravity / Cloud Code";
+const AGY_PROJECT = "aicode-consumers";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const AGY_QUOTA_URLS = [
+  "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+  "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+];
+// Credencial do CLI Antigravity, a mesma que o proxy local usava. Ela vai publicada no pacote por
+// decisão do autor: se o Google revogar ou limitar este client, este caminho para de funcionar.
+const AGY_CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
+const AGY_CLIENT_SECRET = "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";
+// O Cloud Code recusa (403) quem não se identifica como o CLI; o proxy usava exatamente esta UA.
+const AGY_USER_AGENT = "antigravity/cli/1.2.16 (aidev_client; os_type=darwin; arch=arm64; auth_method=consumer)";
+
+/** Contas do Antigravity: `PI_QUOTA_TUI_AGY_ACCOUNTS` ou o arquivo que o /quota-login mantém. */
+export const agyAccountsPath = (): string =>
+  process.env.PI_QUOTA_TUI_AGY_ACCOUNTS?.trim() || join(homedir(), ".local", "share", "pi-quota-tui", "agy-accounts.json");
+
+/** accounts.json do AGY Local Proxy: só leitura, compatibilidade com quem já o tinha. */
+export const agyLegacyPath = (): string => join(homedir(), ".local", "share", "agy-local-proxy", "accounts.json");
+
+type AgyAccount = Json & { refreshToken: string };
 
 const identityKey = (account: Json, index: number): string => {
   const identity = account.email || account.projectId;
@@ -248,7 +285,12 @@ export function parseGroups(groups: unknown): Window[] {
   const windows: Window[] = [];
   for (const group of groups) {
     if (!isObject(group) || typeof group.displayName !== "string" || !Array.isArray(group.buckets)) continue;
-    const name = group.displayName.trim().replace(/\s+models$/i, "").replace(/\band\b/g, "e");
+    const name = group.displayName
+      .trim()
+      .replace(/\s+models$/i, "")
+      .replace(/\band\b/g, "e")
+      // "Gemini 4 Argon" vira "Argon": a linha do modelo fica curta no painel.
+      .replace(/^Gemini\s+\d+(?:\.\d+)?\s+/i, "");
     for (const bucket of group.buckets) {
       if (!isObject(bucket) || bucket.disabled === true) continue;
       const fraction = clamped(bucket.remainingFraction, 0, 1);
@@ -261,72 +303,100 @@ export function parseGroups(groups: unknown): Window[] {
   return windows;
 }
 
-function validAccounts(root: Json): Json[] {
-  return Array.isArray(root.accounts) ? root.accounts.filter(isObject) : [];
+/** Contas utilizáveis: sem refreshToken não há como renovar o token, então ficam de fora. */
+export function parseAgyAccounts(root: unknown): AgyAccount[] {
+  if (!Array.isArray(root)) return [];
+  return root
+    .filter(isObject)
+    .filter((account): account is AgyAccount => typeof account.refreshToken === "string" && account.refreshToken.trim() !== "");
 }
 
-export function parseProxy(root: Json, now: number): Snapshot[] {
-  const accounts = validAccounts(root);
-  if (root.offline || !accounts.length)
-    throw new ReadError("Proxy AGY sem contas disponíveis.");
-  const age = num(root.quotaAgeMs, 0, 1e12);
-  const ttl = num(root.quotaTtlMs, 1, 1e12);
-  // Sem idade conhecida, a quota não é tratada como recém-lida.
-  const updated = age === undefined ? undefined : now - age / 1000;
-  const result: Snapshot[] = [];
-  accounts.forEach((account, index) => {
-    const quota = account.quota;
-    const windows = isObject(quota) && !quota.error ? parseGroups(quota.groups) : [];
-    const cooldown = num(account.coolingDownSec, 0, 1e9);
-    const key = identityKey(account, index);
-    const cooling = isObject(account.modelCooldowns)
-      ? Object.values(account.modelCooldowns).filter((v) => num(v, 0, 1e9) !== undefined && v !== 0).length
-      : 0;
-    let note = "Contas separadas; percentuais não são somados nem promediados.";
-    if (cooling) note += ` COOLDOWN em ${cooling} modelo(s); não significa bloqueio global.`;
-    result.push({
-      id: `antigravity/${key}`,
-      name: `Antigravity / conta ${key.slice(0, 6)}`,
-      pet: "antigravity",
-      windows,
-      updatedAt: updated,
-      source: "AGY / servidor local",
-      error: windows.length ? undefined : "Conta sem leitura de quota reconhecida.",
-      stale: age === undefined || (ttl !== undefined && age > ttl),
-      note,
-      cooldownUntil: cooldown ? now + cooldown : undefined,
-    });
+/** JSON privado: guarda refresh tokens, então só o dono pode ler, como o auth.json. */
+export async function readPrivateJson(path: string): Promise<unknown> {
+  try {
+    const info = await stat(path);
+    if (info.mode & 0o077) return undefined;
+    return parseJson(await readFile(path, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+async function agyAccountsFile(): Promise<unknown> {
+  return (await readPrivateJson(agyAccountsPath())) ?? (await readPrivateJson(agyLegacyPath()));
+}
+
+const googleToken = (body: Record<string, string>): Promise<Json> =>
+  readJson(GOOGLE_TOKEN_URL, {
+    headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: AGY_CLIENT_ID, client_secret: AGY_CLIENT_SECRET, ...body }).toString(),
+    timeout: 10,
   });
-  if (!result.length) throw new ReadError("Proxy AGY sem contas reconhecidas.");
-  return result;
+
+/** Client público do CLI Antigravity; o /quota-login monta a URL de consentimento com ele. */
+export const AGY_CLIENT = AGY_CLIENT_ID;
+
+/** Código do consentimento Google trocado por refresh token (login feito pela própria extensão). */
+export const agyLoginToken = (code: string, redirect: string, verifier: string): Promise<Json> =>
+  googleToken({ code, redirect_uri: redirect, code_verifier: verifier, grant_type: "authorization_code" });
+
+export async function agyToken(refreshToken: string): Promise<string> {
+  const root = await googleToken({ refresh_token: refreshToken, grant_type: "refresh_token" });
+  const token = root.access_token;
+  if (typeof token !== "string" || !token) throw new ReadError("O Google não renovou o token desta conta Antigravity.");
+  return token;
 }
 
-/** Conta paga: a apontada por NOTUTIL_AGY_PAID (id, email ou projeto) ou a mais completa. */
-export function paidIndex(root: Json, hint = ""): number {
-  // Mesma filtragem de parseProxy: contas inválidas não entram nos índices.
-  const accounts = validAccounts(root);
-  if (!accounts.length) return 0;
+/** O primeiro endpoint é o do dia; o segundo cobre contas que só respondem no host antigo. */
+async function agyGroups(token: string, project: string): Promise<unknown[]> {
+  let failure: ReadError | undefined;
+  for (const url of AGY_QUOTA_URLS) {
+    try {
+      const root = await readJson(url, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": AGY_USER_AGENT },
+        body: JSON.stringify({ project }),
+        timeout: 10,
+      });
+      if (Array.isArray(root.groups)) return root.groups;
+      failure = new ReadError("O Cloud Code não informou grupos de quota.");
+    } catch (error) {
+      if (!(error instanceof ReadError)) throw error;
+      failure = error;
+    }
+  }
+  throw failure ?? new ReadError("O Cloud Code não informou grupos de quota.");
+}
+
+/** Uma conta Antigravity vira um snapshot; a paga é escolhida depois por paidIndex. */
+export function agySnapshot(account: AgyAccount, index: number, groups: unknown[], now: number): Snapshot {
+  const key = identityKey(account, index);
+  const windows = parseGroups(groups);
+  return {
+    id: `antigravity/${key}`,
+    name: `Antigravity / conta ${key.slice(0, 6)}`,
+    windows,
+    updatedAt: now,
+    source: AGY_SOURCE,
+    error: windows.length ? undefined : "Conta sem leitura de quota reconhecida.",
+    note: "Contas separadas; percentuais não são somados nem promediados.",
+  };
+}
+
+/** Conta paga: a apontada por PI_QUOTA_TUI_AGY_PAID (id, e-mail ou projeto) ou a com mais janelas lidas. */
+export function paidIndex(accounts: AgyAccount[], snapshots: Snapshot[], hint = ""): number {
   const wanted = hint.trim();
   if (wanted) {
     const found = accounts.findIndex(
-      (a, i) => isObject(a) && (wanted === (a.email || a.projectId) || identityKey(a, i).startsWith(wanted)),
+      (a, i) => wanted === a.email || wanted === a.projectId || identityKey(a, i).startsWith(wanted),
     );
     if (found >= 0) return found;
   }
-  const rank = (account: unknown): [number, number] => {
-    if (!isObject(account)) return [0, 0];
-    const claude = Array.isArray(account.claudeIds) ? account.claudeIds.length : 0;
-    const groups = isObject(account.quota) && Array.isArray(account.quota.groups) ? account.quota.groups : [];
-    const buckets = groups.reduce((sum: number, g: unknown) => sum + (isObject(g) && Array.isArray(g.buckets) ? g.buckets.length : 0), 0);
-    return [claude, buckets];
-  };
   let best = 0;
-  let bestRank: [number, number] = [-1, -1];
-  accounts.forEach((account, index) => {
-    const current = rank(account);
-    if (current[0] > bestRank[0] || (current[0] === bestRank[0] && current[1] > bestRank[1])) {
+  let bestCount = -1;
+  snapshots.forEach((s, index) => {
+    if (s.windows.length > bestCount) {
       best = index;
-      bestRank = current;
+      bestCount = s.windows.length;
     }
   });
   return best;
@@ -334,7 +404,8 @@ export function paidIndex(root: Json, hint = ""): number {
 
 /** Uma cota principal (a paga); as demais viram BONUS. Nada é somado nem promediado. */
 export function collapse(snapshots: Snapshot[], primary: number, now: number): Snapshot {
-  const chosen = snapshots[primary];
+  const chosen = snapshots[primary] ?? snapshots[0];
+  if (!chosen) throw new ReadError("Nenhuma conta Antigravity disponível.");
   const others = snapshots.filter((_, index) => index !== primary);
   const parts = [`PAGA ${(chosen.id.split("/").pop() ?? "").slice(0, 6)}`];
   const usable = others.filter((s) => s.windows.length && !s.error);
@@ -356,14 +427,28 @@ export function collapse(snapshots: Snapshot[], primary: number, now: number): S
 
 async function collectAntigravity(): Promise<Snapshot[]> {
   const now = nowSec();
-  let root: Json;
-  try {
-    root = await readJson(AGY_URL, { timeout: 5 });
-  } catch {
-    throw new ReadError("Abra o proxy AGY para consultar as quotas do Antigravity.");
-  }
-  const snapshots = parseProxy(root, now);
-  return [collapse(snapshots, paidIndex(root, process.env.NOTUTIL_AGY_PAID ?? ""), now)];
+  const accounts = parseAgyAccounts(await agyAccountsFile());
+  if (!accounts.length)
+    return [disabled("antigravity", "Antigravity", AGY_SOURCE,
+      "Sem contas Antigravity: rode /quota-login para importar do AGY ou entrar com o Google.")];
+  const snapshots = await Promise.all(accounts.map(async (account, index) => {
+    try {
+      const token = await agyToken(account.refreshToken.trim());
+      return agySnapshot(account, index, await agyGroups(token, String(account.projectId ?? AGY_PROJECT)), now);
+    } catch (error) {
+      const key = identityKey(account, index);
+      return {
+        id: `antigravity/${key}`,
+        name: `Antigravity / conta ${key.slice(0, 6)}`,
+        windows: [],
+        source: AGY_SOURCE,
+        error: error instanceof ReadError ? error.message : "Falha na leitura do Antigravity.",
+      } satisfies Snapshot;
+    }
+  }));
+  // Nenhuma conta legível: devolve os erros por conta para /quota explicar cada uma.
+  if (!snapshots.some((s) => s.windows.length)) return snapshots;
+  return [collapse(snapshots, paidIndex(accounts, snapshots, process.env.PI_QUOTA_TUI_AGY_PAID ?? ""), now)];
 }
 
 // --- OpenAI/Codex: 'codex app-server --stdio' com a sessão já logada (sem tokens aqui) ---
@@ -401,14 +486,23 @@ export function parseCodex(result: Json, now: number): Snapshot {
   const credits = result.rateLimitResetCredits;
   const count = isObject(credits) ? credits.availableCount : undefined;
   const note = typeof count === "number" && Number.isInteger(count) && count > 0 ? `${count} reset(s) de limite disponível(is)` : "";
-  return { id: "openai", name: "OpenAI Codex", pet: "openai", windows, updatedAt: now, source: "codex app-server", note };
+  return { id: "openai", name: "OpenAI Codex", windows, updatedAt: now, source: "codex app-server", note };
 }
 
 class MissingBinary extends ReadError {}
 
+/** Chaves de quota não vão para o subprocesso: o Codex não precisa delas. */
+const FOREIGN_SECRETS = ["OPENCODE_GO_KEY", "COMMAND_CODE_API_KEY", "COMMANDCODE_API_KEY"];
+
+function codexEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const name of FOREIGN_SECRETS) delete env[name];
+  return env;
+}
+
 function codexRateLimits(): Promise<Json> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("codex", ["app-server", "--stdio"], { stdio: ["pipe", "pipe", "ignore"] });
+    const proc = spawn("codex", ["app-server", "--stdio"], { stdio: ["pipe", "pipe", "ignore"], env: codexEnv() });
     let settled = false;
     const finish = (error?: Error, value?: Json) => {
       if (settled) return;
@@ -436,7 +530,7 @@ function codexRateLimits(): Promise<Json> {
       return isObject(message.result) ? finish(undefined, message.result) : finish(noAnswer());
     });
     const requests = [
-      { method: "initialize", id: 1, params: { clientInfo: { name: "notutil", title: "notutil", version: "0" } } },
+      { method: "initialize", id: 1, params: { clientInfo: { name: "pi-quota-tui", title: "pi-quota-tui", version: "0" } } },
       { method: "initialized" },
       { method: "account/rateLimits/read", id: 2 },
     ];
@@ -453,10 +547,10 @@ async function collectOpenai(): Promise<Snapshot[]> {
   }
 }
 
-// --- Claude: arquivos locais (statusLine exato ou histórico do app desktop); sem rede ---
+// --- Claude: histórico local do app desktop; sem rede ---
 
 const CLAUDE_SOURCE = "App Claude / histórico do plano";
-const CLAUDE_NO_DATA = "Sem dados locais do Claude: use o Claude Code com statusLine ou abra o app desktop.";
+const CLAUDE_NO_DATA = "Sem dados do Claude: abra o app desktop ou faça login (Claude Pro/Max) no pi.";
 const FIVE_HOURS = 18000;
 const WEEKLY = 604800;
 
@@ -469,9 +563,8 @@ interface Sample {
 
 type SampleKey = "fh" | "sd";
 
-const statuslinePath = () =>
-  join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "notutil", "claude-limits.json");
-
+// shortcut: o caminho OAuth (api/oauth/usage) não tem teste de integração — só parseOauthUsage é
+// testado, porque a chamada exige login Claude Pro/Max real; cobrir quando houver credencial de teste.
 function historyCandidates(): string[] {
   const config = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
   return [
@@ -479,14 +572,6 @@ function historyCandidates(): string[] {
     join(homedir(), ".local", "share", "Claude", "plan-usage-history.json"),
     join(homedir(), ".claude", "plan-usage-history.json"),
   ];
-}
-
-async function isFile(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
-  }
 }
 
 async function historyPath(): Promise<string | undefined> {
@@ -500,41 +585,6 @@ async function historyPath(): Promise<string | undefined> {
     }
   }
   return found.sort((a, b) => b.mtime - a.mtime)[0]?.path;
-}
-
-export async function readStatusline(now: number, path = statuslinePath()): Promise<Snapshot | undefined> {
-  let raw: unknown;
-  let updated: number;
-  try {
-    raw = parseJson(await readFile(path, "utf8"));
-    if (!isObject(raw)) return undefined;
-    updated = epoch(raw.captured_at) ?? (await stat(path)).mtimeMs / 1000;
-  } catch {
-    return undefined;
-  }
-  const limits = (raw as Json).rate_limits;
-  if (!isObject(limits)) return undefined;
-  const windows: Window[] = [];
-  for (const [key, label, duration] of [["five_hour", "5 horas", FIVE_HOURS], ["seven_day", "Semanal", WEEKLY]] as const) {
-    const item = limits[key];
-    if (!isObject(item)) continue;
-    const used = clamped(item.used_percentage, 0, 100);
-    const reset = epoch(item.resets_at);
-    if (used === undefined || (reset !== undefined && reset <= now)) continue;
-    windows.push({ label, used, resetsAt: reset, duration });
-  }
-  if (!windows.length) return undefined;
-  const stale = now - updated > 30 * 60;
-  return {
-    id: "claude",
-    name: "Claude Code",
-    pet: "claude",
-    windows,
-    updatedAt: updated,
-    source: "Claude Code / statusLine",
-    note: stale ? "statusLine vencido; abra o Claude Code." : "statusLine do Claude Code (exato)",
-    stale,
-  };
 }
 
 async function readSamples(path: string): Promise<Sample[]> {
@@ -612,7 +662,6 @@ async function readHistory(now: number): Promise<Snapshot | undefined> {
   return {
     id: "claude",
     name: "Claude Code",
-    pet: "claude",
     windows,
     updatedAt: rows[rows.length - 1].at,
     source: CLAUDE_SOURCE,
@@ -623,34 +672,69 @@ async function readHistory(now: number): Promise<Snapshot | undefined> {
 
 const noClaudeData = (): Snapshot => disabled("claude", "Claude Code", CLAUDE_SOURCE, CLAUDE_NO_DATA);
 
+// --- Claude: OAuth da assinatura (fallback quando não há arquivo local) ---
+
+const ANTHROPIC_USAGE = "https://api.anthropic.com/api/oauth/usage";
+
+/** Uso da assinatura pelo OAuth: utilization 0..100 e resets_at em ISO. */
+export function parseOauthUsage(root: Json, now: number): Snapshot {
+  const windows: Window[] = [];
+  const locked: string[] = [];
+  for (const [key, label, duration] of [["five_hour", "5 horas", FIVE_HOURS], ["seven_day", "Semanal", WEEKLY]] as const) {
+    const item = root[key];
+    if (!isObject(item)) continue;
+    const used = clamped(item.utilization, 0, 100);
+    if (used === undefined) continue;
+    windows.push({ label, used, resetsAt: epoch(item.resets_at), duration });
+    if (typeof item.locked_reason === "string" && item.locked_reason) locked.push(label);
+  }
+  if (!windows.length) throw new ReadError("O Claude (OAuth) não informou janelas de quota.");
+  const parts = ["OAuth do pi / uso da assinatura"];
+  if (locked.length) parts.push(`bloqueado: ${locked.join(", ")}`);
+  return { id: "claude", name: "Claude Code", windows, updatedAt: now, source: "Claude / OAuth usage", note: parts.join(" | ") };
+}
+
+async function readOauthUsage(now: number): Promise<Snapshot | undefined> {
+  const token = await oauthAccess("anthropic");
+  if (!token) return undefined;
+  const root = await readJson(ANTHROPIC_USAGE, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "oauth-2025-04-20",
+      "x-app": "cli",
+      "User-Agent": USER_AGENT,
+    },
+    timeout: 10,
+  });
+  return parseOauthUsage(root, now);
+}
+
+/** Histórico do app desktop; erro local só aparece se o OAuth também não render nada. */
+async function localClaude(now: number): Promise<{ snapshot?: Snapshot; error?: Snapshot }> {
+  if (!(await historyPath())) return {};
+  try {
+    const desktop = await readHistory(now);
+    return desktop?.windows.length ? { snapshot: desktop } : {};
+  } catch (error) {
+    const message = error instanceof ReadError ? error.message : "Falha ao ler o histórico do app Claude.";
+    return { error: { id: "claude", name: "Claude Code", windows: [], source: CLAUDE_SOURCE, error: message } };
+  }
+}
+
 async function collectClaude(): Promise<Snapshot[]> {
   const now = nowSec();
-  if (!(await isFile(statuslinePath())) && !(await historyPath())) return [noClaudeData()];
-  const statusline = await readStatusline(now);
-  let desktop: Snapshot | undefined;
+  const local = await localClaude(now);
+  if (local.snapshot) return [local.snapshot];
   try {
-    desktop = await readHistory(now);
+    const oauth = await readOauthUsage(now);
+    if (oauth) return [oauth];
   } catch (error) {
-    desktop = { id: "claude", name: "Claude Code", pet: "claude", windows: [], source: CLAUDE_SOURCE,
-      error: error instanceof ReadError ? error.message : "Falha ao ler o histórico do app Claude." };
+    if (error instanceof ReadError) return [{ id: "claude", name: "Claude Code", windows: [], source: "Claude / OAuth usage", error: error.message }];
+    throw error;
   }
-  const candidates = [statusline, desktop].filter((s): s is Snapshot => s !== undefined && s.windows.length > 0);
-  if (!candidates.length) return [desktop ?? noClaudeData()];
-  let chosen = candidates[0];
-  if (candidates.length > 1) {
-    chosen = candidates.reduce((a, b) => ((b.updatedAt ?? 0) > (a.updatedAt ?? 0) ? b : a));
-    // Quando o desktop vence, a renovação exata do statusLine prevalece.
-    const exact = chosen === statusline ? undefined : statusline;
-    if (exact)
-      chosen = {
-        ...chosen,
-        windows: chosen.windows.map((w) => ({
-          ...w,
-          resetsAt: exact.windows.find((e) => e.label === w.label && e.resetsAt)?.resetsAt ?? w.resetsAt,
-        })),
-      };
-  }
-  return [chosen];
+  return [local.error ?? noClaudeData()];
 }
 
 // --- registro dos coletores, por provedor ---

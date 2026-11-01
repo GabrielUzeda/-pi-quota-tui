@@ -1,26 +1,19 @@
 // Erros de resposta por provedor: respostas válidas em JSON mas inúteis viram ReadError, não crash.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCommandcode, parseProxy, parseOpencode, ReadError } from "../src/providers.ts";
+import { agySnapshot, parseAgyAccounts, parseCommandcode, parseOpencode, ReadError } from "../src/providers.ts";
 
 const NOW = 1_700_000_000;
 
-test("AGY: proxy offline ou sem contas é ReadError", () => {
-  assert.throws(() => parseProxy({ offline: true, accounts: [{}] }, NOW), ReadError);
-  assert.throws(() => parseProxy({ accounts: [] }, NOW), ReadError);
-  assert.throws(() => parseProxy({}, NOW), ReadError);
+test("Antigravity: contas sem refreshToken são descartadas e lixo não derruba a lista", () => {
+  assert.equal(parseAgyAccounts([{}, { refreshToken: "" }, null, 3, "x"]).length, 0);
+  assert.equal(parseAgyAccounts({ accounts: [{ refreshToken: "r" }] }).length, 0);
 });
 
-test("AGY: conta sem quota reconhecida fica com erro próprio, sem janelas", () => {
-  const [s] = parseProxy({ accounts: [{ email: "a@x", quota: { error: "x" } }] }, NOW);
+test("Antigravity: conta sem grupos reconhecidos fica com erro próprio, sem janelas", () => {
+  const s = agySnapshot({ refreshToken: "r", email: "a@x" }, 0, [], NOW);
   assert.equal(s.windows.length, 0);
   assert.equal(s.error, "Conta sem leitura de quota reconhecida.");
-});
-
-test("AGY: idade ausente marca a quota como antiga", () => {
-  const [s] = parseProxy({ accounts: [{ email: "a@x", quota: { groups: [] } }] }, NOW);
-  assert.equal(s.stale, true);
-  assert.equal(s.updatedAt, undefined);
 });
 
 test("OpenCode: resposta sem janelas reconhecidas é ReadError", () => {

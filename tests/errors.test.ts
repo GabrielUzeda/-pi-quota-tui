@@ -1,4 +1,4 @@
-// Erros de consulta: cada falha vira mensagem segura (sem URL, corpo ou stack) e o card continua visível.
+// Erros de consulta: cada falha vira mensagem segura (sem URL, corpo ou stack) e o provedor continua listado.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
@@ -68,7 +68,7 @@ async function isolated(extra: Record<string, string | undefined>, fn: (home: st
     OPENCODE_GO_KEY: undefined,
     COMMAND_CODE_API_KEY: undefined,
     COMMANDCODE_API_KEY: undefined,
-    NOTUTIL_AGY_PAID: undefined,
+    PI_QUOTA_TUI_AGY_PAID: undefined,
     ...extra,
   };
   const saved = { ...process.env };
@@ -132,14 +132,14 @@ test("URL não permitida é recusada antes de qualquer conexão", async () => {
   );
 });
 
-// --- Monitor: o que chega ao card ---
+// --- Monitor: o que chega ao relatório ---
 
 const NOW = Date.now() / 1000;
 const okSnapshot: Snapshot = {
-  id: "opencode", name: "OpenCode Go", pet: "opencode",
+  id: "opencode", name: "OpenCode Go",
   windows: [{ label: "5 horas", used: 30 }], updatedAt: NOW, source: "x",
 };
-const offSnapshot = (id: string): Snapshot => ({ id, name: id, pet: id, windows: [], source: "x", disabled: true });
+const offSnapshot = (id: string): Snapshot => ({ id, name: id, windows: [], source: "x", disabled: true });
 
 /** Monitor em que só o OpenCode é controlado; os demais provedores ficam desligados. */
 function monitorWith(opencode: () => Promise<Snapshot[]>): Monitor {
@@ -149,7 +149,7 @@ function monitorWith(opencode: () => Promise<Snapshot[]>): Monitor {
   return new Monitor(collectors);
 }
 
-test("erro de consulta chega ao card com a mensagem específica", async () => {
+test("erro de consulta chega ao relatório com a mensagem específica", async () => {
   const monitor = monitorWith(async () => {
     throw new ReadError("Consulta recusada (HTTP 401).");
   });
@@ -238,7 +238,7 @@ test("Codex que recusa a leitura vira erro legível", async () => {
   });
 });
 
-test("histórico do Claude em formato desconhecido vira erro no card", async () => {
+test("histórico do Claude em formato desconhecido vira erro no relatório", async () => {
   await isolated({}, async (home) => {
     const dir = join(home, "config", "Claude");
     await mkdir(dir, { recursive: true });
@@ -249,9 +249,9 @@ test("histórico do Claude em formato desconhecido vira erro no card", async () 
 });
 
 test("Codex ausente some do relatório; outro provedor sem chave continua listado", () => {
-  const codexOff: Snapshot = { id: "openai", name: "OpenAI Codex", pet: "openai", windows: [], source: "codex app-server",
+  const codexOff: Snapshot = { id: "openai", name: "OpenAI Codex", windows: [], source: "codex app-server",
     error: "Codex CLI não encontrado no PATH.", disabled: true };
-  const ocOff: Snapshot = { id: "opencode", name: "OpenCode Go", pet: "opencode", windows: [], source: "x",
+  const ocOff: Snapshot = { id: "opencode", name: "OpenCode Go", windows: [], source: "x",
     error: "Defina OPENCODE_GO_KEY.", disabled: true };
   const text = report([codexOff, ocOff], Date.now() / 1000);
   assert.ok(!text.includes("Codex"), "Codex não deve aparecer");

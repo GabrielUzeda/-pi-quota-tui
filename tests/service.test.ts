@@ -11,6 +11,6 @@ test("serviço: provedor com falha continua visível como SEM SINAL, não some",
   assert.equal(s.disabled, false);
   assert.equal(s.name, "Antigravity");
   assert.equal(s.error, "Abra o proxy AGY");
-  assert.equal(health(s, Date.now() / 1000).status, "SEM SINAL");
+  assert.equal(health(s, Date.now() / 1000), "SEM SINAL");
   monitor.stop();
 });

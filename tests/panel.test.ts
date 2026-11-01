@@ -12,21 +12,19 @@ const NOW = Date.now() / 1000;
 
 test("painel: nenhuma linha passa da largura, com e sem provedores", () => {
   const monitor = new Monitor();
-  const set = (m: Monitor, snaps: Snapshot[]) => (m as unknown as { data: Map<string, Snapshot[]> }).data.set(snaps[0].pet, snaps);
-  const tui = { requestRender() {} } as never;
-  const panel = new QuotaPanel(monitor, theme, tui);
+  const set = (m: Monitor, snaps: Snapshot[]) => (m as unknown as { data: Map<string, Snapshot[]> }).data.set(snaps[0].id, snaps);
+    const panel = new QuotaPanel(monitor, theme);
   try {
     for (const width of [46, 20]) {
       for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width, `${visibleWidth(line)} > ${width}: ${line}`);
     }
-    set(monitor, [{ id: "openai", name: "OpenAI Codex com um nome bem comprido demais", pet: "openai",
+    set(monitor, [{ id: "openai", name: "OpenAI Codex com um nome bem comprido demais",
       windows: [{ label: "5 horas", used: 97, resetsAt: NOW + 600, duration: 18000 }, { label: "Semanal", used: 40 }],
-      updatedAt: NOW, source: "x", note: "uma nota longa que precisa ser cortada para caber no card lateral" }]);
+      updatedAt: NOW, source: "x", note: "uma nota longa que precisa ser cortada para caber no painel" }]);
     for (const width of [46, 20]) {
       for (const line of panel.render(width)) assert.ok(visibleWidth(line) <= width, `${visibleWidth(line)} > ${width}: ${line}`);
     }
   } finally {
-    panel.dispose();
     monitor.stop();
   }
 });

@@ -1,13 +1,13 @@
 {
-  "name": "notutil-pi",
+  "name": "pi-quota-tui",
   "version": "0.2.0",
-  "description": "Quotas de IA e pets pixel-art no painel lateral do pi",
+  "description": "Cotas de IA das assinaturas numa lista ANSI no painel do pi",
   "type": "module",
   "keywords": [
     "pi-package",
     "pi-extension",
     "quota",
-    "pixel-art"
+    "ansi"
   ],
   "pi": {
     "extensions": [
@@ -16,8 +16,7 @@
   },
   "scripts": {
     "test": "node --test \"tests/*.test.ts\" && node tests/extension.smoke.mjs",
-    "typecheck": "tsc --noEmit",
-    "export-pets": "python3 scripts/export_pets_data.py"
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -38,16 +37,16 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19.0"
   },
   "license": "MIT",
   "author": "gsuzeda",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gsuzeda/notutil.git"
+    "url": "git+https://github.com/gsuzeda/pi-quota-tui.git"
   },
-  "homepage": "https://github.com/gsuzeda/notutil#readme",
+  "homepage": "https://github.com/gsuzeda/pi-quota-tui#readme",
   "bugs": {
-    "url": "https://github.com/gsuzeda/notutil/issues"
+    "url": "https://github.com/gsuzeda/pi-quota-tui/issues"
   }
 }

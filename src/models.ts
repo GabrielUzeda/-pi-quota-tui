@@ -14,15 +14,12 @@ export interface Window {
 export interface Snapshot {
   id: string;
   name: string;
-  /** Nome do pet/provedor: antigravity, opencode, openai, claude, commandcode. */
-  pet: string;
   windows: Window[];
   updatedAt?: number;
   source: string;
   error?: string;
   stale?: boolean;
   note?: string;
-  cooldownUntil?: number;
   disabled?: boolean;
 }
 

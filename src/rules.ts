@@ -1,4 +1,4 @@
-// Ritmo portado de Models.cs/Theme.cs do QuotaDesk; saúde não é atividade.
+// Ritmo e saúde comparam uso com o tempo que falta até a renovação.
 import { outdated, type Snapshot, type Window } from "./models.ts";
 
 export function pace(w: Window, now: number, stale = false): number | undefined {
@@ -46,24 +46,19 @@ export function resetText(w: Window, now: number): string {
   return "RENOVA EM " + (w.estimated ? "~" : "") + countdown(w.resetsAt - now);
 }
 
-export type Emotion = "comemorando" | "triste" | "desesperado" | "concentrado";
-
-/** Emoção do pet e rótulo de saúde da quota. */
-export function health(s: Snapshot, now: number): { emotion: Emotion; status: string } {
-  if (!s.windows.length) return { emotion: "triste", status: "SEM SINAL" };
-  if (outdated(s, now)) return { emotion: "triste", status: "DESATUALIZADO" };
-  if (s.cooldownUntil !== undefined && s.cooldownUntil > now) return { emotion: "desesperado", status: "COOLDOWN" };
-  const values = s.windows.map((w) => delta(w, now)).filter((v): v is number => v !== undefined);
-  if (s.windows.some((w) => w.used >= 90) || values.some((v) => v > 10))
-    return { emotion: "desesperado", status: "ATENCAO" };
-  if (values.some((v) => v > 3)) return { emotion: "concentrado", status: "AJUSTANDO A ROTA" };
-  if (values.length && values.every((v) => v < -3)) return { emotion: "comemorando", status: "FOLGA" };
-  return { emotion: "concentrado", status: "MONITORANDO" };
-}
-
-/** Janela que bloqueia primeiro (menor folga); as demais vão para o rodapé. */
-export function mainWindow(s: Snapshot): Window | undefined {
-  let best: Window | undefined;
-  for (const w of s.windows) if (!best || w.used > best.used) best = w;
-  return best;
+/** Rótulo de saúde da quota. */
+export function health(s: Snapshot, now: number): string {
+  if (!s.windows.length) return "SEM SINAL";
+  if (outdated(s, now)) return "DESATUALIZADO";
+  // Saldo disponível relativo à fração do ciclo que falta sustentar.
+  const coverage = Math.min(...s.windows.map((w) => {
+    const remaining = (100 - w.used) / 100;
+    const elapsed = pace(w, now);
+    // Sem ciclo conhecido, usa saldo absoluto: 60/50/37,5% como faixas.
+    return remaining / (elapsed === undefined ? 0.5 : 1 - elapsed / 100);
+  }));
+  if (coverage <= 0.75) return "ATENCAO";
+  if (coverage < 1) return "COTA APERTADA";
+  if (coverage > 1.2) return "FOLGA";
+  return "MONITORANDO";
 }

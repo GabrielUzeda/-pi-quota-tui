@@ -1,10 +1,10 @@
 // Texto puro das cotas: relatório de /quota e tool get_quotas. Sem ANSI, para o LLM também ler.
-import type { Snapshot, Window } from "./models.ts";
+import type { Snapshot } from "./models.ts";
 import { outdated } from "./models.ts";
-import { countdown, delta, forecast, health, pace, paceLabel, resetText } from "./rules.ts";
+import { delta, forecast, health, pace, paceLabel, resetText } from "./rules.ts";
 
 /** Barra de uso com marca de ritmo (│) quando há referência. */
-export function bar(used: number, reference: number | undefined, width = 20): string {
+export function bar(used: number, reference: number | undefined, width: number): string {
   const filled = Math.round((used * width) / 100);
   const chars: string[] = Array.from({ length: width }, (_, i) => (i < filled ? "█" : "░"));
   if (reference !== undefined) {
@@ -14,18 +14,10 @@ export function bar(used: number, reference: number | undefined, width = 20): st
   return chars.join("");
 }
 
-/** Renovação curta para cards: "2h 10min", "aguardando", "--". */
-export function resetShort(w: Window, now: number): string {
-  if (w.resetsAt === undefined) return "--";
-  if (w.resetsAt <= now) return "aguardando";
-  return (w.estimated ? "~" : "") + countdown(w.resetsAt - now);
-}
-
 export function details(s: Snapshot, now: number): string[] {
   const stale = outdated(s, now);
-  const lines = [s.name.toUpperCase(), health(s, now).status];
+  const lines = [s.name.toUpperCase(), health(s, now)];
   if (s.updatedAt !== undefined) lines.push(`Leitura ${new Date(s.updatedAt * 1000).toLocaleTimeString("pt-BR")}`);
-  if (s.cooldownUntil !== undefined && s.cooldownUntil > now) lines.push(`Cooldown global ${countdown(s.cooldownUntil - now)}`);
   if (s.error) lines.push(s.error);
   for (const w of s.windows) {
     lines.push(

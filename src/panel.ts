@@ -1,88 +1,134 @@
-// Painel lateral: um card por provedor, com mascote animado. Overlay não-capturante: o editor mantém o foco.
+// Painel de cotas: lista ANSI pura, provedores lado a lado quando cabem. Sem imagens, sem animação.
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
-import { bar, resetShort } from "./format.ts";
-import { outdated, type Snapshot } from "./models.ts";
-import { health, mainWindow, pace } from "./rules.ts";
-import { petFrames } from "./pets.ts";
+import { getTerminalColorMode, rgbColor, styleText, truncateToWidth, visibleWidth, type Color, type Component } from "@earendil-works/pi-tui";
+import { bar } from "./format.ts";
+import { outdated } from "./models.ts";
+import type { Snapshot, Window } from "./models.ts";
+import { pace } from "./rules.ts";
 import type { Monitor } from "./service.ts";
 
-export const PANEL_WIDTH = 46;
-/** Abaixo disso o painel some para não cobrir o chat. */
-export const PANEL_MIN_TERMINAL = 110;
-const PET_COLS = 12;
-/** NOTUTIL_PET_FPS: 0 desliga; padrão 2; teto 10 (cada quadro redesenha o pi inteiro). */
-export function frameMsFrom(raw: string | undefined): number {
-  const fps = raw === undefined || raw.trim() === "" ? 2 : Number(raw);
-  if (!Number.isFinite(fps)) return 500;
-  if (fps <= 0) return 0;
-  return 1000 / Math.min(fps, 10);
-}
-const FRAME_MS = frameMsFrom(process.env.NOTUTIL_PET_FPS);
+/** Largura da barra de saldo, separador entre janelas e recuo entre colunas de provedores. */
+const BAR_WIDTH = 8;
+const SEP = " │ ";
+const GAP = "   ";
+/** Abaixo disso um provedor não cabe legível; duas colunas só acima de 2 x isso. */
+const MIN_COL = 30;
 
-const EMOTION_COLOR: Record<string, ThemeColor> = {
-  comemorando: "success",
-  concentrado: "accent",
-  desesperado: "error",
-  triste: "warning",
+/** Cores de marca; branco usa a cor padrão do texto, que acompanha tema claro e escuro. */
+const BRAND: Record<string, Color | "text"> = {
+  antigravity: rgbColor(66, 133, 244),
+  opencode: "text",
+  commandcode: "text",
+  openai: rgbColor(16, 163, 127),
+  claude: rgbColor(217, 119, 87),
 };
 
-const usageColor = (used: number): ThemeColor => (used < 75 ? "accent" : used < 90 ? "warning" : "error");
-const pad = (text: string, width: number) => text + " ".repeat(Math.max(0, width - visibleWidth(text)));
-
-function card(s: Snapshot, now: number, theme: Theme, width: number, frame: number): string[] {
-  const { emotion, status } = health(s, now);
-  const stale = outdated(s, now);
-  const sprite = petFrames(s.pet, emotion)[frame % 6] ?? [];
-  const right = width - PET_COLS - 1;
-  const lines = [`${theme.bold(theme.fg("text", s.name))}  ${theme.fg(EMOTION_COLOR[emotion], theme.bold(status))}`];
-  const main = mainWindow(s);
-  if (main) {
-    const reference = pace(main, now, stale);
-    lines.push(`${theme.fg(usageColor(main.used), bar(main.used, reference, 16))} ${theme.bold(`${Math.round(main.used)}%`)}`);
-    lines.push(theme.fg("muted", `${main.label} · renova ${resetShort(main, now)}`));
-    for (const w of s.windows)
-      if (w !== main) lines.push(theme.fg("dim", `${w.label} ${Math.round(w.used)}% · ${resetShort(w, now)}`));
-  }
-  if (s.error) lines.push(theme.fg("warning", s.error));
-  else if (s.note) lines.push(theme.fg("dim", s.note));
-  const height = Math.max(sprite.length, lines.length);
-  return Array.from({ length: height }, (_, y) =>
-    pad(sprite[y] ?? "", PET_COLS) + " " + truncateToWidth(lines[y] ?? "", right, "…", true));
+function paintName(theme: Theme, s: Snapshot): string {
+  const brand = BRAND[s.id];
+  if (brand === "text") return theme.bold(s.name);
+  if (brand === undefined) return theme.fg("accent", theme.bold(s.name));
+  return styleText(s.name, { fg: brand, bold: true }, getTerminalColorMode());
 }
 
-/** Componente do overlay. Renderiza a partir do Monitor e se redesenha sozinho para animar. */
+/**
+ * Cor da barra: com ritmo conhecido, compara o uso com o que já deveria ter sido gasto
+ * (verde com folga, amarelo adiantado, vermelho queimando rápido). Sem ritmo, usa o saldo.
+ */
+export function barColor(w: Window, reference: number | undefined): ThemeColor {
+  if (reference === undefined) return w.used < 75 ? "accent" : w.used < 90 ? "warning" : "error";
+  const over = w.used - reference;
+  return over > 10 ? "error" : over > 3 ? "warning" : "success";
+}
+
+/** Tempo até renovar em uma única unidade, sem rótulos extras. */
+export function compactReset(w: Window, now: number): string {
+  if (w.resetsAt === undefined) return "--";
+  const seconds = w.resetsAt - now;
+  if (seconds <= 0) return "0m";
+  const [value, unit] = seconds >= 86400 ? [seconds / 86400, "d"]
+    : seconds >= 3600 ? [seconds / 3600, "h"] : [Math.max(1, seconds / 60), "m"];
+  return (w.estimated ? "~" : "") + Number(value.toFixed(1)) + unit;
+}
+
+/**
+ * Uma janela em texto: grupo e barra de saldo com marca de ritmo, mais o tempo de renovação.
+ * Antigravity mistura famílias (Gemini/Claude/Argon): a primeira palavra do grupo identifica a janela.
+ */
+function windowItem(w: Window, now: number, stale: boolean, theme: Theme): string {
+  const reference = pace(w, now, stale);
+  const marker = bar(100 - w.used, reference === undefined ? undefined : 100 - reference, BAR_WIDTH);
+  const tag = w.group ? w.group.split(/\s+/)[0] + " " : "";
+  return tag + theme.fg(barColor(w, reference), marker) + " " + compactReset(w, now);
+}
+
+/** Junta as janelas em linhas, quebrando com recuo alinhado sob a primeira janela. */
+function wrap(name: string, items: string[], width: number): string[] {
+  const headWidth = visibleWidth(name) + 1;
+  const indent = " ".repeat(Math.min(headWidth, Math.max(0, width - 1)));
+  const lines: string[] = [];
+  let line = name + " ";
+  let lineWidth = Math.min(headWidth, width);
+  let count = 0;
+
+  for (const item of items) {
+    const sep = count ? SEP : "";
+    if (count && lineWidth + visibleWidth(sep) + visibleWidth(item) > width) {
+      lines.push(truncateToWidth(line, width, "…", true));
+      line = indent;
+      lineWidth = visibleWidth(indent);
+      count = 0;
+    }
+    const room = width - lineWidth - (count ? visibleWidth(SEP) : 0);
+    if (room <= 0) break;
+    const piece = visibleWidth(item) <= room ? item : truncateToWidth(item, room, "…", true);
+    if (!visibleWidth(piece)) break;
+    line += (count ? SEP : "") + piece;
+    lineWidth += (count ? visibleWidth(SEP) : 0) + visibleWidth(piece);
+    count++;
+  }
+
+  lines.push(truncateToWidth(line, width, "…", true));
+  return lines;
+}
+
+/** Linhas de um provedor, já na largura da coluna. */
+function providerLines(s: Snapshot, width: number, now: number, theme: Theme): string[] {
+  const stale = outdated(s, now);
+  // Sem corte: grupo escondido (ex.: Argon, 5a janela do AGY) some sem aviso.
+  const items = s.windows.map((w) => windowItem(w, now, stale, theme));
+  return wrap(paintName(theme, s), items, width);
+}
+
+/** Componente do widget: provedores no dock abaixo do editor, até dois por linha. */
 export class QuotaPanel implements Component {
   private readonly monitor: Monitor;
   private readonly theme: Theme;
-  private readonly timer?: ReturnType<typeof setInterval>;
 
-  constructor(monitor: Monitor, theme: Theme, tui: TUI) {
+  constructor(monitor: Monitor, theme: Theme) {
     this.monitor = monitor;
     this.theme = theme;
-    if (FRAME_MS) this.timer = setInterval(() => tui.requestRender(), FRAME_MS);
   }
 
   render(width: number): string[] {
-    const { theme } = this;
     const now = Date.now() / 1000;
-    const frame = FRAME_MS ? Math.floor(Date.now() / FRAME_MS) : 0;
-    const active = this.monitor.snapshots().filter((s) => !s.disabled);
-    const lines = [pad(theme.fg("accent", theme.bold("QUOTAS")) + theme.fg("dim", ` · ${active.length} provedor(es)`), width)];
-    if (!active.length) {
-      lines.push(theme.fg("dim", "Nenhuma assinatura configurada. Veja o README."));
+    // Provedor sem nenhuma janela (proxy fora, Codex mudo, Claude sem histórico) não rende linha.
+    const active = this.monitor.snapshots().filter((s) => !s.disabled && s.windows.length);
+    if (!active.length) return [truncateToWidth(this.theme.fg("dim", "Nenhuma cota disponível. Veja o README."), width, "…", true)];
+
+    const cols = width >= 2 * MIN_COL + visibleWidth(GAP) ? 2 : 1;
+    const colWidth = Math.floor((width - (cols - 1) * visibleWidth(GAP)) / cols);
+    const lines: string[] = [];
+
+    for (let i = 0; i < active.length; i += cols) {
+      const blocks = active.slice(i, i + cols).map((s) => providerLines(s, colWidth, now, this.theme));
+      const height = Math.max(...blocks.map((b) => b.length));
+      for (let r = 0; r < height; r++) {
+        const line = blocks.map((b) => b[r] ?? " ".repeat(colWidth)).join(GAP);
+        lines.push(truncateToWidth(line, width, "…", true));
+      }
     }
-    for (const s of active) {
-      lines.push(theme.fg("dim", "─".repeat(width)));
-      lines.push(...card(s, now, theme, width, frame));
-    }
-    return lines.map((line) => truncateToWidth(line, width, "…", true));
+    return lines;
   }
 
-  // Sem cache: o render lê o Monitor a cada quadro.
   invalidate(): void {}
-
-  dispose(): void {
-    if (this.timer) clearInterval(this.timer);
-  }
 }
