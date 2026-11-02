@@ -4,7 +4,7 @@ import { getTerminalColorMode, rgbColor, styleText, truncateToWidth, visibleWidt
 import { bar } from "./format.ts";
 import { outdated } from "./models.ts";
 import type { Snapshot, Window } from "./models.ts";
-import { pace } from "./rules.ts";
+import { pace, visible } from "./rules.ts";
 import type { Monitor } from "./service.ts";
 
 /** Largura da barra de saldo, separador entre janelas e recuo entre colunas de provedores. */
@@ -94,8 +94,8 @@ function wrap(name: string, items: string[], width: number): string[] {
 /** Linhas de um provedor, já na largura da coluna. */
 function providerLines(s: Snapshot, width: number, now: number, theme: Theme): string[] {
   const stale = outdated(s, now);
-  // Sem corte: grupo escondido (ex.: Argon, 5a janela do AGY) some sem aviso.
-  const items = s.windows.map((w) => windowItem(w, now, stale, theme));
+  // Sem corte por largura: quem some é só janela esgotada, e as abaixo dela (ver visible).
+  const items = visible(s.windows).map((w) => windowItem(w, now, stale, theme));
   return wrap(paintName(theme, s), items, width);
 }
 
@@ -112,7 +112,7 @@ export class QuotaPanel implements Component {
   render(width: number): string[] {
     const now = Date.now() / 1000;
     // Provedor sem nenhuma janela (proxy fora, Codex mudo, Claude sem histórico) não rende linha.
-    const active = this.monitor.snapshots().filter((s) => !s.disabled && s.windows.length);
+    const active = this.monitor.snapshots().filter((s) => !s.disabled && visible(s.windows).length);
     if (!active.length) return [truncateToWidth(this.theme.fg("dim", "Nenhuma cota disponível. Veja o README."), width, "…", true)];
 
     const cols = width >= 2 * MIN_COL + visibleWidth(GAP) ? 2 : 1;

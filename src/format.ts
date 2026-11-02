@@ -1,7 +1,7 @@
 // Texto puro das cotas: relatório de /quota e tool get_quotas. Sem ANSI, para o LLM também ler.
 import type { Snapshot } from "./models.ts";
 import { outdated } from "./models.ts";
-import { delta, forecast, health, pace, paceLabel, resetText } from "./rules.ts";
+import { delta, forecast, health, pace, paceLabel, resetText, visible } from "./rules.ts";
 
 /** Barra de uso com marca de ritmo (│) quando há referência. */
 export function bar(used: number, reference: number | undefined, width: number): string {
@@ -16,10 +16,11 @@ export function bar(used: number, reference: number | undefined, width: number):
 
 export function details(s: Snapshot, now: number): string[] {
   const stale = outdated(s, now);
-  const lines = [s.name.toUpperCase(), health(s, now)];
+  const windows = visible(s.windows);
+  const lines = [s.name.toUpperCase(), health({ ...s, windows }, now)];
   if (s.updatedAt !== undefined) lines.push(`Leitura ${new Date(s.updatedAt * 1000).toLocaleTimeString("pt-BR")}`);
   if (s.error) lines.push(s.error);
-  for (const w of s.windows) {
+  for (const w of windows) {
     lines.push(
       "",
       (w.group ? `${w.group} / ` : "") + w.label,
@@ -31,7 +32,7 @@ export function details(s: Snapshot, now: number): string[] {
     const estimate = forecast(w, now, stale);
     if (estimate) lines.push(estimate);
   }
-  if (!s.windows.length) lines.push("Sem dados da assinatura.");
+  if (!windows.length) lines.push("Sem dados da assinatura.");
   if (s.note) lines.push("", s.note);
   lines.push(`Origem: ${s.source}`);
   return lines;
@@ -43,7 +44,7 @@ const OPTIONAL = new Set(["openai"]);
 /** Relatório completo; provedores sem configuração ficam listados como não configurados. */
 export function report(snapshots: Snapshot[], now: number): string {
   const out = ["QUOTA WATCH // MONITOR DE IA", "Cota da assinatura; nao e contexto nem custo de sessao."];
-  for (const s of snapshots.filter((x) => !x.disabled)) out.push("", ...details(s, now));
+  for (const s of snapshots.filter((x) => !x.disabled && visible(x.windows).length)) out.push("", ...details(s, now));
   const off = snapshots.filter((x) => x.disabled && !OPTIONAL.has(x.id)).map((x) => x.name);
   if (off.length) out.push("", `Nao configurado: ${off.join(", ")}.`);
   return out.join("\n");

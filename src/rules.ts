@@ -1,6 +1,26 @@
 // Ritmo e saúde comparam uso com o tempo que falta até a renovação.
 import { outdated, type Snapshot, type Window } from "./models.ts";
 
+/** Hierarquia mensal > semanal > 5h: esgotar a de cima torna as de baixo inuteis. */
+const RANKS: Record<string, number> = { Mensal: 3, Semanal: 2, "5 horas": 1 };
+
+/**
+ * Janelas que valem a pena mostrar: nada abaixo de uma janela esgotada do mesmo grupo aparece.
+ * Rank desconhecido ("Limite", familias do AGY) nunca e escondido nem esgota nada.
+ */
+export function visible(windows: Window[]): Window[] {
+  const dead = new Map<string, number>();
+  for (const w of windows) {
+    const rank = RANKS[w.label];
+    // Limiar do que a tela mostra como 0% restante: a API devolve 99.96, nao 100 exato.
+    if (Math.round(w.used) < 100 || rank === undefined) continue;
+    const key = w.group ?? "";
+    dead.set(key, Math.max(dead.get(key) ?? 0, rank));
+  }
+  if (!dead.size) return windows;
+  return windows.filter((w) => (RANKS[w.label] ?? Infinity) > (dead.get(w.group ?? "") ?? 0));
+}
+
 export function pace(w: Window, now: number, stale = false): number | undefined {
   if (stale || w.resetsAt === undefined || w.duration === undefined) return undefined;
   const left = w.resetsAt - now;

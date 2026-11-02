@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { bar } from "../src/format.ts";
-import { health, pace } from "../src/rules.ts";
+import { health, pace, visible } from "../src/rules.ts";
 import { agySnapshot, collapse, estimateReset, nextMonthlyReset, paidIndex, parseAgyAccounts, parseCodex } from "../src/providers.ts";
 import type { Snapshot } from "../src/models.ts";
 
@@ -52,4 +52,20 @@ test("reset: semanal nunca é inventado; mensal vira próximo dia de virada", ()
 
 test("barra marca o ritmo", () => {
   assert.equal(bar(50, 50, 10), "█████│░░░░");
+});
+
+test("visivel: janela esgotada esconde as de baixo (mensal > semanal > 5h)", () => {
+  const names = (windows: { label: string; used: number }[]) => visible(windows.map((w) => ({ ...w }))).map((w) => w.label);
+  const all = [{ label: "5 horas", used: 10 }, { label: "Semanal", used: 20 }, { label: "Mensal", used: 30 }];
+  assert.deepEqual(names(all), ["5 horas", "Semanal", "Mensal"]);
+  assert.deepEqual(names([{ ...all[0], used: 100 }, all[1], all[2]]), ["Semanal", "Mensal"]);
+  assert.deepEqual(names([all[0], { ...all[1], used: 100 }, all[2]]), ["Mensal"]);
+  assert.deepEqual(names([all[0], all[1], { ...all[2], used: 100 }]), []);
+  // 99.96 tambem conta: a tela arredonda para 0% restante
+  assert.deepEqual(names([all[0], all[1], { ...all[2], used: 99.96 }]), []);
+  assert.deepEqual(names([all[0], all[1], { ...all[2], used: 99.4 }]), ["5 horas", "Semanal", "Mensal"]);
+  // Rank desconhecido (familias do AGY) nunca some nem esgota o grupo
+  const agy = [{ label: "5 horas", used: 100, group: "Gemini" }, { label: "5 horas", used: 5, group: "Claude" },
+               { label: "Limite", used: 100, group: "Gemini" }];
+  assert.deepEqual(visible(agy).map((w) => w.group + "/" + w.label), ["Claude/5 horas", "Gemini/Limite"]);
 });

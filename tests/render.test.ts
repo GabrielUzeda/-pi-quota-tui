@@ -75,7 +75,9 @@ test("lista: janelas que não cabem quebram com recuo alinhado sob a primeira ja
     assert.match(plain(lines[0]), /^Antigravity Gemini /);
     assert.ok(plain(lines[1]).startsWith(" ".repeat(12)), "recuo = largura de \"Antigravity \"");
     const text = plain(lines.join("\n"));
-    for (const family of ["Gemini", "Claude", "Argon"]) assert.ok(text.includes(family), family);
+    // Claude está com a Semanal esgotada: o grupo inteiro some (ver visible() em rules.ts).
+    for (const family of ["Gemini", "Argon"]) assert.ok(text.includes(family), family);
+    assert.ok(!text.includes("Claude"), "grupo esgotado não aparece");
     for (const l of lines) assert.ok(visibleWidth(l) <= 40);
   } finally {
     monitor.stop();
