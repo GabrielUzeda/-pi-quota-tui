@@ -1,123 +1,133 @@
-# pi-quota-tui — cotas de IA no pi
+# pi-quota-tui — AI subscription quotas inside pi
 
-Painel com as cotas das suas assinaturas de IA, em texto puro ANSI, dentro do [pi](https://pi.dev).
-Funciona em qualquer terminal: sem imagens, sem animação, sem depender de fonte ou protocolo gráfico.
-Não envia prompts e não chama modelos: só lê o estado de uso de cada conta.
+A panel with the quotas of your AI subscriptions, as plain ANSI text, inside [pi](https://pi.dev).
+Works in any terminal: no images, no animation, no font or graphics protocol required.
+It never sends prompts and never calls a model: it only reads each account's usage state.
 
-![Painel de cotas logo abaixo do editor do pi](https://raw.githubusercontent.com/GabrielUzeda/pi-quota-tui/main/assets/preview.svg)
+![Quota panel right below the pi editor](https://raw.githubusercontent.com/GabrielUzeda/pi-quota-tui/main/assets/preview.svg)
 
-Provedores: **OpenCode Go**, **Antigravity** (direto no Google, sem proxy local), **Claude Code** e **CommandCode**. O **OpenAI Codex** também, mas exige o CLI `codex` (veja abaixo).
+Providers: **OpenCode Go**, **Antigravity** (straight to Google, no local proxy), **Claude Code** and **CommandCode**. **OpenAI Codex** too, but it needs the `codex` CLI (see below).
 
-## Instalação
+## Install
 
 ```sh
 pi install npm:pi-quota-tui
 ```
 
-Ou direto do repositório:
+Or straight from the repository:
 
 ```sh
 pi install git:github.com/GabrielUzeda/pi-quota-tui
 ```
 
-Para remover: `pi remove npm:pi-quota-tui`.
+To remove it: `pi remove npm:pi-quota-tui`.
 
-O painel aparece sozinho ao abrir o pi, como uma lista abaixo do editor.
-Os dados são atualizados a cada 2 minutos.
+The panel shows up by itself when pi opens, as a list below the editor.
+Data refreshes every 2 minutes.
 
-## Formato
+## Layout
 
-Nome do provedor e as janelas de cota separadas por `│`, com barra de saldo e tempo até renovar.
-Dois provedores partilham a linha quando há espaço.
+Provider name followed by its quota windows separated by `│`, each with a balance bar and the time until it renews.
+Two providers share a row when there is room.
 
 ```text
 Antigravity Gemini ████████ 6d │ Gemini ████████ 6h        OpenCode Go ███░░░░░░ 3.2h
             Claude ░░░░░░░░ 2d │ Argon ░░░░░░░░ 2d         OpenAI Codex ████████ 2.8h
 CommandCode ██░░░░░░ 45m
+Expired: Antigravity Argon 6d │ CommandCode 12.2d
 ```
 
-- A barra mostra o **saldo restante**; o `│` dentro dela é a marca de ritmo (onde o saldo deveria estar para durar até a renovação).
-- A cor da barra é o ritmo, não o saldo: verde com folga, amarelo de 3 a 10 pontos adiantado, vermelho acima disso. Sem reset/duração conhecidos, ela usa o saldo (azul, amarelo a partir de 75% usado, vermelho a partir de 90%).
-- Quando as janelas não cabem, a linha quebra com recuo alinhado sob a primeira janela.
-- Janela esgotada (100% usado) esconde ela e as abaixo dela na hierarquia mensal > semanal > 5h, no mesmo grupo. Mensal zerado tira o provedor do painel; semanal zerado deixa só o mensal. Janelas sem hierarquia (as "Limite" do Antigravity) nunca somem.
-- O que esgotou volta numa linha final `Expired:`, com o tempo até renovar: por grupo vale a janela que trava as de baixo, ordenado de quem volta antes para quem volta depois, com a tag em vermelho forte e o tempo numa rampa contínua verde → amarelo → vermelho conforme a espera pesa no ciclo da janela (18h numa semanal é verde; 12d numa mensal não). Provedor só com cotas esgotadas continua na tela por essa linha.
-- O painel não escreve avisos: nem `DESATUALIZADO`, nem `ATENCAO`. Quem quiser o diagnóstico usa `/quota`.
-- As cores dos nomes seguem a marca: Antigravity azul, OpenAI verde, Claude laranja; OpenCode e CommandCode usam a cor padrão do texto, que acompanha tema claro e escuro. Sem truecolor, as cores caem para 256 cores automaticamente.
+- The bar shows the **remaining balance**; the `│` inside it is the pace mark (where the balance should be for it to last until renewal).
+- The bar's color is pace, not balance: green with slack, yellow 3 to 10 points ahead, red above that. Without a known reset/duration it falls back to balance (blue, yellow from 75% used, red from 90%).
+- When the windows do not fit, the row wraps with an indent aligned under the first window.
+- An exhausted window (100% used) hides itself and the ones below it in the monthly > weekly > 5-hour hierarchy, within the same group. Monthly at zero removes the provider from the panel; weekly at zero leaves only the monthly. Windows without a rank (Antigravity's "Limite") never disappear.
+- Whatever exhausted comes back in a final `Expired:` row with the time until it renews. Per group the governing window is the one that blocks the ones below it; rows are sorted from the soonest return to the latest. The tag is a fixed strong red and the time sits on a continuous green → yellow → red ramp, weighed against the window's own cycle: 18h of a weekly is green, 12d of a monthly is not. A provider whose only group is exhausted stays on screen through this row instead of vanishing.
+- The wait ramp has no fixed thresholds: it interpolates between `#3fb950`, `#d29922` and `#f85149` in sRGB, easing from 15% of the cycle (fully green) to 60% (fully red). Without a known cycle, the fallback scale is 1h..1d.
+- The panel writes no status words: no `OUTDATED`, no `TIGHT`. Diagnostics live in `/quota`.
+- Name colors follow each brand: Antigravity blue, OpenAI green, Claude orange; OpenCode and CommandCode use the default text color, which follows light and dark themes. Without truecolor, colors fall back to 256 colors automatically.
 
-## Comandos e ferramenta
+## Commands and tool
 
-| Comando | O que faz |
+| Command | What it does |
 |---|---|
-| `/quotas` | Mostra ou esconde o painel |
-| `/quota [all\|opencode\|agy\|commandcode]` | Relatório de texto no chat (não entra no contexto do modelo) |
-| `/usage` | Alias de `/quota` |
-| `/quota-login` | Importa as contas Antigravity do AGY ou faz o login Google na própria extensão |
+| `/quotas` | Shows or hides the panel |
+| `/quota [all\|opencode\|agy\|commandcode]` | Text report in the chat (never enters the model context) |
+| `/usage` | Alias of `/quota` |
+| `/quota-login` | Imports the Antigravity accounts from AGY or runs the Google login inside the extension |
 
-A ferramenta `get_quotas` entrega o mesmo relatório ao modelo, quando você pedir.
+The `get_quotas` tool hands the same report to the model when you ask for it.
 
-## Configuração
+## Configuration
 
-Cada provedor só aparece se estiver configurado **e** com pelo menos uma janela de cota. Provedor sem configuração, ou sem nenhuma leitura, fica fora do painel; `/quota` mostra o motivo.
+Each provider only appears if it is configured **and** has at least one quota window. A provider without configuration, or without any reading, stays out of the panel; `/quota` shows why.
 
-| Provedor | Como configurar |
+| Provider | How to configure it |
 |---|---|
-| OpenCode Go | Entrada `opencode-go` em `~/.pi/agent/auth.json`; sem ela, variável `OPENCODE_GO_KEY` |
-| CommandCode | Entrada `commandcode` em `auth.json`; sem ela, `COMMAND_CODE_API_KEY` (ou `COMMANDCODE_API_KEY`) |
-| Antigravity | Lista de contas em `~/.local/share/pi-quota-tui/agy-accounts.json` (`[{ email, projectId, refreshToken }]`, modo `600`), criada por `/quota-login`. O `accounts.json` do AGY é lido só como fallback e `PI_QUOTA_TUI_AGY_ACCOUNTS` sobrepõe os dois. Sem proxy rodando. |
-| OpenAI Codex | **Obrigatório para puxar as quotas dele:** CLI `codex` instalado e no PATH (as quotas são lidas com `codex app-server`). Sem o CLI, o provedor simplesmente não aparece. |
-| Claude Code | Histórico do app desktop (`plan-usage-history.json`) e, sem ele, OAuth da assinatura (`/login` Claude Pro/Max no pi). A primeira fonte com dados vence; sem nenhuma, o provedor fica fora do painel |
+| OpenCode Go | `opencode-go` entry in `~/.pi/agent/auth.json`; without it, the `OPENCODE_GO_KEY` env var |
+| CommandCode | `commandcode` entry in `auth.json`; without it, `COMMAND_CODE_API_KEY` (or `COMMANDCODE_API_KEY`) |
+| Antigravity | Account list in `~/.local/share/pi-quota-tui/agy-accounts.json` (`[{ email, projectId, refreshToken }]`, mode `600`), created by `/quota-login`. AGY's `accounts.json` is only a fallback and `PI_QUOTA_TUI_AGY_ACCOUNTS` overrides both. No proxy required. |
+| OpenAI Codex | **Required to pull its quotas:** the `codex` CLI installed and on PATH (quotas are read through `codex app-server`). Without the CLI the provider simply does not show up. |
+| Claude Code | Desktop app history (`plan-usage-history.json`) and, without it, the subscription OAuth (`/login` Claude Pro/Max in pi). The first source with data wins; with neither, the provider stays out of the panel |
 
-O `auth.json` só é lido se estiver com permissão `600` (sem acesso de grupo ou outros). **Ele tem prioridade**; as variáveis de ambiente são o fallback quando a seção não existe, está vazia ou o arquivo é rejeitado.
+`auth.json` is only read when its permissions are `600` (no group or other access). **It takes priority**; env vars are the fallback when the section is missing, empty, or the file is rejected.
 
-Variável opcional: `PI_QUOTA_TUI_AGY_PAID`, pista para escolher a conta paga do Antigravity.
+Optional env var: `PI_QUOTA_TUI_AGY_PAID`, a hint to pick the paid Antigravity account.
 
-## O que cada provedor precisa para funcionar
+## What each provider needs to work
 
-Nada abaixo é instalado pela extensão: ela só lê o que já existe na máquina e consulta a rede. Faltando o pré-requisito, o provedor sai do painel e `/quota` mostra o motivo.
+Nothing below is installed by the extension: it only reads what already exists on the machine and talks to the network. If a prerequisite is missing, the provider leaves the panel and `/quota` shows why.
 
-| Provedor | Credencial | Arquivo ou binário externo | Rede |
+| Provider | Credential | External file or binary | Network |
 |---|---|---|---|
-| OpenCode Go | seção `opencode-go` do `auth.json`, ou `OPENCODE_GO_KEY` | — | `GET opencode.ai/zen/go/v1/usage` |
-| CommandCode | seção `commandcode` do `auth.json`, ou `COMMAND_CODE_API_KEY`/`COMMANDCODE_API_KEY` | — | `GET api.commandcode.ai/alpha/billing/credits` e `/usage/summary` |
-| Antigravity | `refreshToken` de cada conta Google (client OAuth do CLI Antigravity, embutido no código) | nenhum: `/quota-login` mantém o arquivo com modo `600` (ver abaixo) | OAuth do Google + `v1internal:retrieveUserQuotaSummary` |
-| OpenAI Codex | login do próprio `codex` (a extensão **não** usa `auth.json` para ele) | **binário `codex` no PATH**, que aceite `codex app-server --stdio` | nenhuma chamada HTTP: fala JSON-RPC com o subprocesso |
-| Claude Code | histórico do app desktop, ou token `anthropic` tipo `oauth` no `auth.json` (`/login` Claude Pro/Max) | `plan-usage-history.json` (opcional) | `GET api.anthropic.com/api/oauth/usage` (só no fallback OAuth) |
+| OpenCode Go | `opencode-go` section of `auth.json`, or `OPENCODE_GO_KEY` | — | `GET opencode.ai/zen/go/v1/usage` |
+| CommandCode | `commandcode` section of `auth.json`, or `COMMAND_CODE_API_KEY`/`COMMANDCODE_API_KEY` | — | `GET api.commandcode.ai/alpha/billing/credits` and `/usage/summary` |
+| Antigravity | `refreshToken` of each Google account (Antigravity CLI OAuth client, embedded in the code) | none: `/quota-login` keeps the file at mode `600` (see below) | Google OAuth + `v1internal:retrieveUserQuotaSummary` |
+| OpenAI Codex | the `codex` login itself (the extension does **not** use `auth.json` for it) | **`codex` binary on PATH**, accepting `codex app-server --stdio` | no HTTP call: it speaks JSON-RPC with the subprocess |
+| Claude Code | desktop app history, or an `anthropic` token of type `oauth` in `auth.json` (`/login` Claude Pro/Max) | `plan-usage-history.json` (optional) | `GET api.anthropic.com/api/oauth/usage` (OAuth fallback only) |
 
-### `/quota-login`: de onde vêm as contas do Antigravity
+### `/quota-login`: where the Antigravity accounts come from
 
-`/quota-login` mantém `~/.local/share/pi-quota-tui/agy-accounts.json` (modo `600`) e resolve as contas em três passos:
+`/quota-login` keeps `~/.local/share/pi-quota-tui/agy-accounts.json` (mode `600`) and resolves the accounts in three steps:
 
-1. **Arquivo próprio válido** — renova o token de cada conta; se todas passarem, não faz mais nada.
-2. **Importar do AGY uma vez** — lê `~/.local/share/agy-local-proxy/accounts.json` (o arquivo do **AGY Local Proxy**, um proxy Node de terceiros em `~/.local/share/agy-local-proxy/server.mjs` que serve o Antigravity como endpoint OpenAI em `127.0.0.1:20128`; o proxy só lê esse arquivo, não tem rota de gravar nem de login, então ele nasceu de edição manual). As contas cujo `refreshToken` o Google ainda renova são copiadas para o arquivo próprio.
-3. **Login na própria extensão** — sem nenhum token válido para importar, abre um OAuth loopback (`127.0.0.1:<porta>` + PKCE) com o client do CLI Antigravity, mostra a URL no painel e grava o `refreshToken` recebido. A conta entra sem `projectId`, então a coleta usa o projeto padrão do Cloud Code; para fixar outro, edite o JSON e adicione `projectId`.
+1. **A valid file of its own** — refreshes each account's token; if all pass, it does nothing else.
+2. **Import from AGY once** — reads `~/.local/share/agy-local-proxy/accounts.json` (the file of **AGY Local Proxy**, a third-party Node proxy at `~/.local/share/agy-local-proxy/server.mjs` that serves Antigravity as an OpenAI endpoint on `127.0.0.1:20128`; the proxy only reads that file, it has no write or login route, so it was born from manual editing). Accounts whose `refreshToken` Google still refreshes are copied into the extension's own file.
+3. **Login inside the extension** — with no valid token to import, it opens an OAuth loopback (`127.0.0.1:<port>` + PKCE) with the Antigravity CLI client, shows the URL in the panel and stores the returned `refreshToken`. The account enters without a `projectId`, so collection uses the Cloud Code default project; to pin another one, edit the JSON and add `projectId`.
 
-Depois disso a extensão é **autônoma**: o arquivo é dela, o AGY pode ser desinstalado, e `PI_QUOTA_TUI_AGY_ACCOUNTS` continua servindo para apontar para outro caminho. O acoplamento que sobra é a credencial: o `refreshToken` precisa ter sido emitido para o client OAuth do CLI Antigravity (o `client_id`/`client_secret` embutidos no código); token de outro client é recusado na renovação.
+After that the extension is **self-contained**: the file is its own, AGY can be uninstalled, and `PI_QUOTA_TUI_AGY_ACCOUNTS` still points to another path. The coupling that remains is the credential: the `refreshToken` must have been issued to the Antigravity CLI OAuth client (the `client_id`/`client_secret` embedded in the code); a token from another client is refused on refresh.
 
-## Como os dados são lidos
+## How the data is read
 
-- Consultas têm timeout de 25 s. Respostas são limitadas a 2 MiB e redirecionamentos não são seguidos.
-- HTTP só é aceito em `127.0.0.1`. Erros aparecem como mensagens curtas, sem URL, cabeçalho ou corpo da resposta.
-- Se uma consulta falhar, o painel mantém a última leitura; o motivo aparece em /quota.
-- Antigravity renova o token no Google e consulta `v1internal:retrieveUserQuotaSummary` direto, sem processo local. As contas vêm de um arquivo (ver Configuração); as famílias aparecem separadas (Gemini, Claude/GPT, Gemini 4 Argon) e contas diferentes não são somadas nem promediadas. O access token fica só em memória.
+- Requests time out after 25 s. Responses are capped at 2 MiB and redirects are not followed.
+- HTTP is only accepted on `127.0.0.1`. Errors surface as short messages, without URL, headers or response body.
+- If a request fails, the panel keeps the last reading; the reason shows up in `/quota`.
+- Antigravity refreshes the token with Google and queries `v1internal:retrieveUserQuotaSummary` directly, with no local process. Accounts come from a file (see Configuration); families appear separately (Gemini, Claude/GPT, Gemini 4 Argon) and different accounts are neither summed nor averaged. The access token lives in memory only.
 
-## Limitações
+## Limitations
 
-- **Antigravity (credencial embutida):** o refresh do token usa o client OAuth do CLI Antigravity, publicado no código por decisão do autor. Se o Google revogar ou limitar esse client, o provedor para de funcionar e volta a exigir um client próprio (`PI_QUOTA_TUI_AGY_CLIENT_ID`/`_SECRET` seria o caminho). Cooldowns por modelo não são lidos: só existiam no proxy.
-- Testado em Linux.
-- **Claude Code (débito):** o histórico do desktop e o fallback OAuth já estão ligados, mas o caminho OAuth (`GET https://api.anthropic.com/api/oauth/usage`, header `anthropic-beta: oauth-2025-04-20`, token `anthropic` `type: "oauth"` do `auth.json`) **não tem teste de integração** — exige um login Claude Pro/Max real. Só `parseOauthUsage` é testado; cobrir rede/401 quando houver credencial de teste.
+- **Antigravity (embedded credential):** token refresh uses the Antigravity CLI OAuth client, published in the code by the author's decision. If Google revokes or restricts that client, the provider stops working and needs a client of its own again (`PI_QUOTA_TUI_AGY_CLIENT_ID`/`_SECRET` would be the path). Per-model cooldowns are not read: they only existed in the proxy.
+- Tested on Linux.
+- **Claude Code (debt):** the desktop history and the OAuth fallback are wired up, but the OAuth path (`GET https://api.anthropic.com/api/oauth/usage`, header `anthropic-beta: oauth-2025-04-20`, `anthropic` token with `type: "oauth"` from `auth.json`) has **no integration test** — it needs a real Claude Pro/Max login. Only `parseOauthUsage` is tested; cover network/401 once a test credential exists.
 
-## Desenvolvimento
+## Development
 
 ```sh
 npm install
-npm test          # testes e smoke test da extensão
+npm test          # unit tests plus the extension smoke test
 npm run typecheck
 ```
 
-## Pacote do pi
+## Changes
 
-Este repositório é publicado no npm como [`pi-quota-tui`](https://www.npmjs.com/package/pi-quota-tui) com a keyword `pi-package`, o que o deixa elegível ao [catálogo de pacotes do pi](https://pi.dev/packages). O campo `pi.extensions` aponta para `./src/index.ts` e `pi.image` para a prévia acima.
+[`CHANGELOG.md`](CHANGELOG.md) records what changed in each version, and every release is a git tag
+`vX.Y.Z` plus a GitHub release. Note that npm shows no changelog of its own: npmjs.com renders this
+README for the published version and lists publish dates only.
 
-## Licença
+## pi package
 
-MIT. Veja `LICENSE`.
+This repository is published on npm as [`pi-quota-tui`](https://www.npmjs.com/package/pi-quota-tui) with the `pi-package` keyword, which makes it eligible for the [pi package catalog](https://pi.dev/packages). The `pi.extensions` field points to `./src/index.ts` and `pi.image` to the preview above.
+
+Note: the panel and `/quota` report itself are still written in Portuguese; this README is the English entry point.
+
+## License
+
+MIT. See `LICENSE`.
