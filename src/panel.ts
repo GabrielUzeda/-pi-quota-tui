@@ -1,10 +1,10 @@
 // Painel de cotas: lista ANSI pura, provedores lado a lado quando cabem. Sem imagens, sem animação.
 import type { Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { getTerminalColorMode, rgbColor, styleText, truncateToWidth, visibleWidth, type Color, type Component } from "@earendil-works/pi-tui";
+import { getTerminalColorMode, mixColors, rgbColor, styleText, truncateToWidth, visibleWidth, type Color, type Component } from "@earendil-works/pi-tui";
 import { bar } from "./format.ts";
 import { outdated } from "./models.ts";
 import type { Snapshot, Window } from "./models.ts";
-import { pace, visible } from "./rules.ts";
+import { expired, pace, visible } from "./rules.ts";
 import type { Monitor } from "./service.ts";
 
 /** Largura da barra de saldo, separador entre janelas e recuo entre colunas de provedores. */
@@ -99,6 +99,50 @@ function providerLines(s: Snapshot, width: number, now: number, theme: Theme): s
   return wrap(paintName(theme, s), items, width);
 }
 
+/** Rampa do tempo de espera: verde é logo ali, amarelo ainda demora, vermelho é o ciclo inteiro. */
+const WAIT_GREEN = rgbColor(63, 185, 80);
+const WAIT_YELLOW = rgbColor(210, 153, 34);
+const WAIT_RED = rgbColor(248, 81, 73);
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/**
+ * Cor contínua do tempo de espera, sem marcos fixos: quanto mais perto do ideal, mais perto do verde.
+ * O ideal é relativo ao ciclo (18h numa semanal é logo ali; 12d numa mensal não), e sem ciclo
+ * conhecido a régua cai para 1h..1d.
+ */
+export function waitColor(duration: number | undefined, left: number | undefined): Color | ThemeColor {
+  if (left === undefined) return "dim";
+  const bad = clamp01(duration ? (left / duration - 0.15) / 0.45 : (left - 3600) / (86400 - 3600));
+  const eased = bad * bad * (3 - 2 * bad);
+  return eased <= 0.5
+    ? mixColors(WAIT_GREEN, WAIT_YELLOW, eased * 2, "srgb")
+    : mixColors(WAIT_YELLOW, WAIT_RED, eased * 2 - 1, "srgb");
+}
+
+/**
+ * Tudo que está esgotado numa linha só, no fim: quem volta antes aparece primeiro.
+ * Provedor cujo único grupo esgotou não some da tela, só sai da lista de janelas.
+ */
+function expiredLine(snapshots: Snapshot[], now: number, width: number, theme: Theme): string[] {
+  const items = snapshots.flatMap((s) =>
+    expired(s.windows).map((e) => {
+      const left = e.resetsAt === undefined ? undefined : e.resetsAt - now;
+      const time = compactReset({ label: "", used: 100, resetsAt: e.resetsAt, estimated: e.estimated }, now);
+      const color = waitColor(e.duration, left);
+      const painted = typeof color === "string" ? theme.fg(color, time) : styleText(time, { fg: color }, getTerminalColorMode());
+      return {
+        at: e.resetsAt ?? Infinity,
+        text: paintName(theme, s) + (e.group ? " " + e.group.split(/\s+/)[0] : "") + " " + painted,
+      };
+    }),
+  );
+  if (!items.length) return [];
+  items.sort((a, b) => a.at - b.at);
+  const tag = styleText("Expired:", { fg: rgbColor(255, 69, 58) }, getTerminalColorMode());
+  return wrap(tag, items.map((i) => i.text), width);
+}
+
 /** Componente do widget: provedores no dock abaixo do editor, até dois por linha. */
 export class QuotaPanel implements Component {
   private readonly monitor: Monitor;
@@ -112,8 +156,8 @@ export class QuotaPanel implements Component {
   render(width: number): string[] {
     const now = Date.now() / 1000;
     // Provedor sem nenhuma janela (proxy fora, Codex mudo, Claude sem histórico) não rende linha.
-    const active = this.monitor.snapshots().filter((s) => !s.disabled && visible(s.windows).length);
-    if (!active.length) return [truncateToWidth(this.theme.fg("dim", "Nenhuma cota disponível. Veja o README."), width, "…", true)];
+    const snapshots = this.monitor.snapshots().filter((s) => !s.disabled && s.windows.length);
+    const active = snapshots.filter((s) => visible(s.windows).length);
 
     const cols = width >= 2 * MIN_COL + visibleWidth(GAP) ? 2 : 1;
     const colWidth = Math.floor((width - (cols - 1) * visibleWidth(GAP)) / cols);
@@ -127,6 +171,8 @@ export class QuotaPanel implements Component {
         lines.push(truncateToWidth(line, width, "…", true));
       }
     }
+    lines.push(...expiredLine(snapshots, now, width, this.theme));
+    if (!lines.length) return [truncateToWidth(this.theme.fg("dim", "Nenhuma cota disponível. Veja o README."), width, "…", true)];
     return lines;
   }
 

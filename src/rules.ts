@@ -21,6 +21,32 @@ export function visible(windows: Window[]): Window[] {
   return windows.filter((w) => (RANKS[w.label] ?? Infinity) > (dead.get(w.group ?? "") ?? 0));
 }
 
+/**
+ * O que está esgotado e quando volta: por grupo, vale a janela de maior hierarquia (a que trava
+ * as de baixo), e no empate a que renova por último. Grupos com rank desconhecido nunca esgotam.
+ */
+export interface Expired {
+  group?: string;
+  resetsAt?: number;
+  /** Segundos do ciclo; calibra se a espera é longa ou logo ali. */
+  duration?: number;
+  estimated?: boolean;
+}
+
+export function expired(windows: Window[]): Expired[] {
+  const dead = new Map<string, { rank: number; resetsAt?: number; duration?: number; estimated?: boolean }>();
+  for (const w of windows) {
+    const rank = RANKS[w.label];
+    if (rank === undefined || Math.round(w.used) < 100) continue;
+    const key = w.group ?? "";
+    const prev = dead.get(key);
+    const later = (w.resetsAt ?? 0) > (prev?.resetsAt ?? 0);
+    if (!prev || rank > prev.rank || (rank === prev.rank && later))
+      dead.set(key, { rank, resetsAt: w.resetsAt, duration: w.duration, estimated: w.estimated });
+  }
+  return [...dead].map(([group, d]) => ({ group: group || undefined, resetsAt: d.resetsAt, duration: d.duration, estimated: d.estimated }));
+}
+
 export function pace(w: Window, now: number, stale = false): number | undefined {
   if (stale || w.resetsAt === undefined || w.duration === undefined) return undefined;
   const left = w.resetsAt - now;

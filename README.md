@@ -40,6 +40,7 @@ CommandCode ██░░░░░░ 45m
 - A cor da barra é o ritmo, não o saldo: verde com folga, amarelo de 3 a 10 pontos adiantado, vermelho acima disso. Sem reset/duração conhecidos, ela usa o saldo (azul, amarelo a partir de 75% usado, vermelho a partir de 90%).
 - Quando as janelas não cabem, a linha quebra com recuo alinhado sob a primeira janela.
 - Janela esgotada (100% usado) esconde ela e as abaixo dela na hierarquia mensal > semanal > 5h, no mesmo grupo. Mensal zerado tira o provedor do painel; semanal zerado deixa só o mensal. Janelas sem hierarquia (as "Limite" do Antigravity) nunca somem.
+- O que esgotou volta numa linha final `Expired:`, com o tempo até renovar: por grupo vale a janela que trava as de baixo, ordenado de quem volta antes para quem volta depois, com a tag em vermelho forte e o tempo numa rampa contínua verde → amarelo → vermelho conforme a espera pesa no ciclo da janela (18h numa semanal é verde; 12d numa mensal não). Provedor só com cotas esgotadas continua na tela por essa linha.
 - O painel não escreve avisos: nem `DESATUALIZADO`, nem `ATENCAO`. Quem quiser o diagnóstico usa `/quota`.
 - As cores dos nomes seguem a marca: Antigravity azul, OpenAI verde, Claude laranja; OpenCode e CommandCode usam a cor padrão do texto, que acompanha tema claro e escuro. Sem truecolor, as cores caem para 256 cores automaticamente.
 
