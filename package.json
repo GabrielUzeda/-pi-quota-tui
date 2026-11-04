@@ -43,6 +43,7 @@
     "src",
     "assets/preview.svg",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {
